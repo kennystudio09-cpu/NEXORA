@@ -63,3 +63,9 @@ On 2026-11-15 the user explicitly authorized creating a new M0 project after sou
 Created Customer, Merchant, and Platform Admin Next.js/Tailwind entry points, a NestJS API liveness endpoint, a BullMQ worker foundation, five shared packages, Prisma configuration, and persistent PostgreSQL/Redis Compose services. No authentication, tenancy, RBAC, domain migrations, or acceptance tests are implemented at this checkpoint. M0 remains BLOCKED pending checkpoint publication and implementation.
 
 Skeleton JSON parsing and sensitive-path ignore checks passed. Docker daemon is available. Initial lockfile generation required moving pnpm writable storage outside the checkout to /workspace/.nexora-tools. No database service was started and no database data was changed. Dependency installation, compilation, functional tests, and E2E are not yet validated.
+
+## M0 backend checkpoint
+
+Initial skeleton pushed to develop and verified at 7e62ba34adf948fea6e6f3bd9db6f49d7d56ab70. PostgreSQL 16 and Redis 7 containers are healthy. Prisma Client 6.19.2 generation and migration 202611150001_m0 passed. API compilation passed. API integration runner reported 12 passing tests (one parent plus 11 acceptance scenarios), zero failures or skips, using real PostgreSQL/Redis. Coverage includes registration, login/session rotation, logout cookie replay rejection, two-merchant switching, role access, cross-tenant negative cases, malicious tenantId, immediate membership revocation, platform authorization, expired sessions, and readiness.
+
+Resolved environment issues: use the pinned pnpm executable for Turbo children, and pass proxy plus writable package-manager storage variables through Turbo strict environment filtering. No TLS or checksum verification was disabled. Browser E2E and full monorepo checks remain pending at this checkpoint.

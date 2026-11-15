@@ -30,6 +30,35 @@
         "^build"
       ],
       "outputs": []
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false
     }
-  }
+  },
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "REDIS_URL",
+    "API_PORT",
+    "NODE_ENV",
+    "ALLOWED_ORIGINS",
+    "COOKIE_SECURE",
+    "TEST_DATABASE_URL",
+    "RUN_INTEGRATION",
+    "API_INTERNAL_URL",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "COREPACK_HOME",
+    "PNPM_HOME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy"
+  ]
 }

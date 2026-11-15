@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+import { resolve } from "node:path";
+config({ path: resolve(__dirname, "../../../.env"), quiet: true });
 import { Worker } from "bullmq";
 import Redis from "ioredis";
 const connection = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", { maxRetriesPerRequest: null });
