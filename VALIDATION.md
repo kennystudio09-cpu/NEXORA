@@ -1,3 +1,60 @@
+# NEXORA M0 — Latest acceptance
+
+Date: 2026-11-15 (Asia/Kuala_Lumpur). **M0: PASS for the requested local development acceptance scope.** This is an explicitly authorized new implementation, not recovery of the lost original source. Earlier blocked results and checkpoint notes are preserved below as history.
+
+## Implemented scope
+
+- pnpm 10.32.1/Turborepo workspace; three responsive Next.js/TypeScript/Tailwind portals with home, registration, login and Dashboard routes.
+- NestJS API; scrypt password hashes; opaque HttpOnly SameSite=Lax cookies backed by hashed, expiring database sessions; rotation on login and server-side revocation on logout; Redis authentication rate limits and origin/header protections.
+- Merchant creation, membership-scoped listing and switching, Dashboard, Owner/Manager/Staff permissions, owner-only addition of existing registered members, and merchant rename for Owner/Manager.
+- Every merchant endpoint rechecks authenticated membership and role. Request body/query tenantId cannot bypass access checks. Platform administrator permission is separate and cannot be granted by ordinary signup.
+- Prisma User/Tenant/Membership/Session models, committed PostgreSQL migration, persistent Compose PostgreSQL/Redis services, dependency readiness and API liveness endpoints.
+- BullMQ worker with a healthcheck handler. AI/business jobs and M1 features remain unimplemented.
+
+## Final checks
+
+| Command or acceptance check | Result | Evidence |
+| --- | --- | --- |
+| `pnpm install --frozen-lockfile` | PASS | Final dependency set installed using the pinned package manager and committed lockfile. Optional dependency lifecycle scripts remain blocked by pnpm default policy; the required Prisma generation, compilation, and runtime checks succeeded explicitly. |
+| `pnpm db:generate` | PASS | Prisma Client 6.19.2 generated with TLS/checksum verification enabled. |
+| `pnpm db:migrate` | PASS | `202611150001_m0` applied; repeat deploy reported no pending migrations. No reset, volume deletion or existing-data replacement. |
+| `pnpm lint` | PASS | ESLint across all ten workspace packages/apps, zero errors or warnings on final run. |
+| `pnpm typecheck` | PASS | All workspace apps/packages plus API test code and Playwright configuration/tests. |
+| `pnpm test` | PASS | API: 12 runner-reported passes (one parent + 11 acceptance scenarios); Worker: one pass. Zero failures, skips or cancellations. Integration task caching disabled. |
+| `pnpm build` | PASS | All ten workspace package/application builds, including all three Next.js production builds and API/Worker compilation. |
+| `pnpm test:e2e` | PASS | Four Chromium browser scenarios passed in 19.5 seconds against the compiled API and production Next.js servers; zero failures, skips or flaky tests in final JSON results. |
+| Registration/login/logout | PASS | Real browser forms and real PostgreSQL API tests; duplicate signup, invalid password, session rotation, expiry and old-cookie replay covered. |
+| Merchant creation/switching/Dashboard | PASS | Two real merchants, authenticated membership listing and active Dashboard verified via browser and API. |
+| Owner/Manager/Staff | PASS | Owner adds members, Manager edits merchant, Staff read-only; API denies direct forbidden writes even when UI is bypassed. |
+| Tenant isolation/forged tenantId | PASS | Unauthorized reads, writes, switching and enumeration denied; injected body tenantId rejected and query tenantId cannot change authorized active merchant. |
+| Platform boundary | PASS | Ordinary accounts denied in browser and API. Positive authorization tested using a synthetic database-controlled administrator with its flag restored afterward. |
+| Responsive layout | PASS | Chromium checks Customer Portal at 390×844 without horizontal overflow; desktop Merchant Dashboard screenshot visually inspected. |
+| Database/Redis/Worker/API health | PASS | Healthy Compose services; API performs SELECT 1 and Redis PING; worker processed a real Redis queue healthcheck job. |
+
+`pnpm dev` startup was also exercised: API readiness returned both dependencies up, and all three login routes returned their expected portal HTML.
+
+Final E2E results are retained locally under `test-results/e2e-results.json`; screenshots include `test-results/merchant-dashboard.png` and `test-results/customer-mobile.png`. These generated artifacts and sensitive traces are ignored and are not committed. API tests create uniquely named synthetic data and do not clear existing tables. Worker tests use isolated, uniquely named queues.
+
+## Issues found and resolved
+
+1. Managed-machine global pnpm differed from the pinned version, and default writable storage was unavailable. Selected the pinned executable outside the checkout and documented writable storage setup.
+2. Turbo strict environment filtering initially removed package-manager storage and proxy settings. Added explicit environment pass-through; Prisma generation then succeeded without weakening verification.
+3. Worker initially passed a Redis instance whose dependency version differed from BullMQ's internal type. Switched to supported connection options; compilation and a real queue test passed.
+4. Initial browser run passed two scenarios and failed two. Added an explicit accessible name to the role select and narrowed an alert assertion that also matched Next.js's route announcer. Rebuilt portals and reran the complete E2E suite: four passed.
+5. Integration checks now bypass Turbo test caching so a cached result cannot hide database/Redis failure.
+
+## GitHub and operational scope
+
+Initial skeleton was pushed and its remote SHA verified before domain development: `7e62ba34adf948fea6e6f3bd9db6f49d7d56ab70`. Backend checkpoint was also pushed and verified: `a805fb07819eac657770494d8c3113ec01bdb4f0`. Development branch: `develop` on `kennystudio09-cpu/NEXORA`. The final acceptance commit SHA is reported after push verification in the task delivery rather than embedded recursively in this file.
+
+`.env` is local and ignored. No real secret, database file, dependency directory, cache or browser trace is intended for Git staging. Persistent Docker volumes remain intact. No forced push, branch deletion, database reset or M1 development occurred.
+
+This acceptance validates the local M0 workflow. Deployment/publication, external domains, production HTTPS/session policies, email verification, password recovery, MFA, and audit logging were not performed. Customer business features and AI providers belong to later phases; shared and ai-core packages intentionally reserve those boundaries. No default platform admin password is seeded. README documents roles, local startup, secure environment requirements and the operator-controlled admin provisioning boundary.
+
+---
+
+# Historical validation record (preserved)
+
 # M0 Validation
 
 Validation date: 2026-11-15 (Asia/Kuala_Lumpur).

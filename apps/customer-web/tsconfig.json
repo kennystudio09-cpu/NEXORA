@@ -12,7 +12,13 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "incremental": true
   },
   "include": [
     "next-env.d.ts",

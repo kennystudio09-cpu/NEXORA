@@ -1,2 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui/src";
 body { background: #07111f; color: #edf4ff; font-family: Arial, sans-serif; }
+button, a, select { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #67e8f9; outline-offset: 4px; }

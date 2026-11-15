@@ -5,9 +5,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint src",
     "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test": "tsc && node --test test/*.mjs"
   },
   "dependencies": {
     "bullmq": "5.66.4",

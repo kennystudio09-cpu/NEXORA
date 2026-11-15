@@ -17,7 +17,7 @@ test("M0 real PostgreSQL/Redis API acceptance", async t => {
   }
   async function register(label: string): Promise<Actor> {
     const email = `${label}-${suffix}@example.test`;
-    const response = await request("/auth/register", undefined, "POST", { email, password });
+    const response = await request("/auth/register", undefined, "POST", { email, password, platformAdmin: true, role: "OWNER", tenantId: "forged" });
     assert.equal(response.status, 201);
     assert.match(response.headers.get("set-cookie")!, /HttpOnly/);
     assert.match(response.headers.get("set-cookie")!, /SameSite=Lax/);
@@ -32,7 +32,7 @@ test("M0 real PostgreSQL/Redis API acceptance", async t => {
   await t.test("register with scrypt password and server-side session; reject duplicate", async () => {
     owner = await register("owner"); manager = await register("manager"); staff = await register("staff"); outsider = await register("outsider");
     const record = await data.db.user.findUniqueOrThrow({where:{id:owner.id}});
-    assert.notEqual(record.passwordHash, password); assert.match(record.passwordHash, /^scrypt:/);
+    assert.equal(record.platformAdmin, false); assert.notEqual(record.passwordHash, password); assert.match(record.passwordHash, /^scrypt:/);
     const duplicate = await request("/auth/register", undefined, "POST", {email:owner.email,password}); assert.equal(duplicate.status,409);
   });
   await t.test("reject missing auth, malformed input, invalid password and cross-origin writes", async () => {

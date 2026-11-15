@@ -10,16 +10,18 @@
     "dev": "node --env-file=.env node_modules/turbo/bin/turbo dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc -p tsconfig.tests.json",
     "test": "node --env-file=.env node_modules/turbo/bin/turbo run test --concurrency=1",
     "db:generate": "node --env-file=.env node_modules/turbo/bin/turbo run db:generate",
     "db:migrate": "node --env-file=.env node_modules/turbo/bin/turbo run db:migrate",
-    "test:e2e": "playwright test"
+    "test:e2e": "node --env-file=.env node_modules/@playwright/test/cli.js test"
   },
   "devDependencies": {
     "turbo": "2.5.6",
     "typescript": "5.9.3",
     "@types/node": "22.19.1",
-    "@playwright/test": "1.58.2"
+    "@playwright/test": "1.58.2",
+    "eslint": "9.39.1",
+    "typescript-eslint": "8.48.1"
   }
 }
