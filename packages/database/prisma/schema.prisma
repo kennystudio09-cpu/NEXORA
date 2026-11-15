@@ -1,0 +1,8 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+// M0 domain models will be added after the initial GitHub checkpoint.
