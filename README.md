@@ -1,6 +1,6 @@
 # NEXORA
 
-AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; catalog, orders, storefront and AI providers remain later modules.
+AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. Orders, checkout and AI providers remain later modules.
 
 ## Workspace
 
@@ -43,7 +43,7 @@ The symlink is outside the repository and points only to the pinned package mana
 
 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, then `pnpm test:e2e`.
 
-Tests require the local Compose database and Redis. API tests create unique synthetic accounts/merchants and retain test data; they never clear existing data. Worker tests use a unique test queue. E2E builds into isolated `.next-e2e` directories, starts the compiled API and all three production-built Next.js apps, then stops those test servers. Dedicated ports 3100–3102 and 4100 must be free; development ports 3000–3002/4000 can remain running. `scripts/e2e.mjs` restores the generated normal-build Next declarations afterward. Chromium defaults to `/usr/bin/chromium`; set CHROMIUM_PATH for an installed compatible Chromium elsewhere. Test results and traces stay ignored under test-results; traces can contain session details and must not be committed.
+Tests require the local Compose database and Redis. API tests create unique synthetic accounts/merchants and retain test data; they never clear existing data. Acceptance fixtures require local database/Redis targets and use independent Redis rate-counter key prefixes, preserving real authentication limits without flushing developer keys. Browser acceptance uses the compiled API through a test-only startup wrapper with the same rate-counter isolation. Worker tests use a unique test queue. E2E builds into isolated `.next-e2e` directories, starts the compiled API and all three production-built Next.js apps, then stops those test servers. Dedicated ports 3100–3102 and 4100 must be free; development ports 3000–3002/4000 can remain running. `scripts/e2e.mjs` restores the generated normal-build Next declarations afterward. Chromium defaults to `/usr/bin/chromium`; set CHROMIUM_PATH for an installed compatible Chromium elsewhere. Test results and traces stay ignored under test-results; traces can contain session details and must not be committed.
 
 `GET /api/health` verifies PostgreSQL and Redis. `GET /api/health/live` is process liveness only.
 
@@ -68,4 +68,14 @@ Owners and Managers may create/edit profiles, tags and notes. All merchant roles
 
 Apply the additive `202611150002_crm` migration only to the intended development database via `pnpm db:migrate`. Never reset data or use production for automated tests. Tests create synthetic contacts and retain them without truncating existing tables.
 
-See [M1 schema and API design](docs/M1-DESIGN.md) for endpoint contracts, limits, the role matrix, identity boundaries and the proposed B/C/D direction. Those later modules are not implemented in the M1-A checkpoint.
+See [M1 schema and API design](docs/M1-DESIGN.md) for endpoint contracts, limits, the role matrix, identity boundaries and the proposed B/C/D direction. The design records the current catalog implementation and remaining order/storefront direction.
+
+## M1-B Products & services
+
+Merchant `/catalog` supports listing/search/status/type/category filters, create/edit/detail, categories, variants, image management, store publication and a price-list foundation. Owner/Manager can manage; Staff is read-only. Prices are exact decimal strings backed by PostgreSQL Decimal(18,4), with no client float conversions. Item deletion archives and hides the record; existing CRM/accounts are unchanged.
+
+Enable a unique store slug in `/catalog/settings` to make ACTIVE items publicly browsable in Customer Portal `/stores/:slug`. Draft, archived and deleted items remain unavailable through public detail/image URLs. Public DTOs omit SKU, tenant and staff/CRM data. English, Chinese and Malay catalog interfaces are available with a persistent language selector.
+
+Uploads accept decoded PNG/JPEG/WebP up to 2 MiB, re-encode stripped WebP, and enforce pixel/output-size limits plus a transactional ten-image cap. Images are stored as tenant-scoped database bytes for this foundation. No upload directory or file path is exposed.
+
+Apply additive migration `202611150003_catalog` only to the intended development database. PriceList overrides, digital delivery, bundle composition, cart/payment and M1-C are not implemented. See docs/M1-DESIGN.md for the full fields, API contracts and tested boundaries.

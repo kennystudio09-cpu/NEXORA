@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { CustomerRecord, CustomerFollowUpRecord, PageResult } from "@nexora/shared";
-import { createApp, Data } from "../src/app";
+import { Data } from "../src/app";
+import { createAcceptanceApp as createApp } from "./support";
 
 test("M1-A CRM real PostgreSQL tenant and role acceptance",async t=>{
   const app=await createApp();await app.listen(0,"127.0.0.1");const base=await app.getUrl();const data=app.get(Data);t.after(()=>app.close());

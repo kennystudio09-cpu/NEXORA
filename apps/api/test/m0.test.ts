@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createApp, Data } from "../src/app";
+import { Data } from "../src/app";
+import { createAcceptanceApp as createApp } from "./support";
 
 test("M0 real PostgreSQL/Redis API acceptance", async t => {
   const app = await createApp();

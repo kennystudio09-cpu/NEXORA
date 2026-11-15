@@ -13,3 +13,5 @@ export interface CustomerFollowUpRecord {
   occurredAt: string; createdAt: string; author: { id: string; email: string };
 }
 export interface PageResult<T> { items: T[]; total: number; page: number; pageSize: number; totalPages: number }
+
+export * from "./catalog";

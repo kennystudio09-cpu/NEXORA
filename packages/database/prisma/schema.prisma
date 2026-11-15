@@ -27,6 +27,11 @@ model Tenant {
   memberships Membership[]
   sessions Session[]
   customers Customer[]
+  catalogSlug String? @unique @map("catalog_slug")
+  catalogPublic Boolean @default(false) @map("catalog_public")
+  catalogItems CatalogItem[]
+  catalogCategories CatalogCategory[]
+  priceLists PriceList[]
 }
 model Membership {
   userId String
@@ -85,4 +90,89 @@ model CustomerFollowUp {
   customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
   author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
   @@index([tenantId, customerId, createdAt, id])
+}
+
+enum CatalogItemType {
+  PRODUCT
+  SERVICE
+  DIGITAL
+  BUNDLE
+}
+enum CatalogStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+model CatalogCategory {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  name String @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  items CatalogItem[]
+  @@unique([tenantId, id])
+  @@unique([tenantId, name])
+}
+model CatalogItem {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  name String @db.VarChar(160)
+  description String @default("") @db.VarChar(6000)
+  itemType CatalogItemType @default(PRODUCT)
+  sku String? @db.VarChar(64)
+  currencyCode String @default("MYR") @db.VarChar(3)
+  basePrice Decimal @db.Decimal(18,4)
+  status CatalogStatus @default(DRAFT)
+  categoryId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  category CatalogCategory? @relation(fields: [tenantId, categoryId], references: [tenantId, id], onDelete: Restrict)
+  variants CatalogVariant[]
+  media CatalogMedia[]
+  @@unique([tenantId, id])
+  @@unique([tenantId, sku])
+  @@index([tenantId, status, createdAt, id])
+}
+model CatalogVariant {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  itemId String @map("item_id")
+  name String @db.VarChar(100)
+  sku String? @db.VarChar(64)
+  price Decimal @db.Decimal(18,4)
+  active Boolean @default(true)
+  item CatalogItem @relation(fields: [tenantId, itemId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@unique([tenantId, itemId, name])
+  @@unique([tenantId, sku])
+}
+model CatalogMedia {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  itemId String @map("item_id")
+  mimeType String @default("image/webp")
+  content Bytes
+  size Int
+  width Int
+  height Int
+  altText String @default("") @db.VarChar(160)
+  createdAt DateTime @default(now())
+  item CatalogItem @relation(fields: [tenantId, itemId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@index([tenantId, itemId])
+}
+model PriceList {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  name String @db.VarChar(100)
+  currencyCode String @default("MYR") @db.VarChar(3)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@unique([tenantId, name])
 }

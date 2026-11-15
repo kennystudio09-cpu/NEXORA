@@ -20,10 +20,12 @@
     "@nexora/auth": "workspace:*",
     "ioredis": "5.9.2",
     "dotenv": "17.2.3",
-    "@nexora/shared": "workspace:*"
+    "@nexora/shared": "workspace:*",
+    "sharp": "0.34.5"
   },
   "devDependencies": {
     "tsx": "4.21.0",
-    "@types/express": "5.0.5"
+    "@types/express": "5.0.5",
+    "@types/multer": "2.0.0"
   }
 }

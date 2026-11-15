@@ -6,6 +6,8 @@ import { hashPassword, verifyPassword } from "@nexora/auth";
 import { Data } from "./data";
 import { CrmController } from "./crm.controller";
 import { CrmService } from "./crm.service";
+import { CatalogController, PublicCatalogController, CatalogReadGuard, CatalogWriteGuard } from "./catalog.controller";
+import { CatalogService } from "./catalog.service";
 export { Data } from "./data";
 import type { Request, Response, NextFunction } from "express";
 
@@ -117,7 +119,7 @@ class ApiController {
     return { users: await this.data.db.user.count(), merchants: await this.data.db.tenant.count() };
   }
 }
-@Module({ controllers: [ApiController, CrmController], providers: [Data, CrmService] })
+@Module({ controllers: [ApiController, CrmController, CatalogController, PublicCatalogController], providers: [Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard] })
 class AppModule {}
 export async function createApp() {
   if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") throw new Error("Production requires COOKIE_SECURE=true and HTTPS");

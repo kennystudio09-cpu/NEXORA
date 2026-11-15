@@ -1,3 +1,65 @@
+# NEXORA M1-B Catalog — Latest acceptance
+
+Date: 2026-11-15 (Asia/Kuala_Lumpur). **M1-B: PASS for local development acceptance. M0 and M1-A regression: PASS.** No M1-C development or production deployment was performed. Previous validation records are preserved below.
+
+## Implemented scope
+
+Continued the clean `feature/m1-core-business` branch from `fa0fe598c9d52e5b17a41a5fb320408c52f176dd`, matching the remote at task start. Preserved authentication, CRM, three applications, previous migrations and existing local data.
+
+- Five models: CatalogItem, CatalogCategory, CatalogVariant, CatalogMedia and PriceList, with physical tenant_id fields, tenant-scoped business uniqueness and composite tenant/parent references.
+- Unified PRODUCT/SERVICE/DIGITAL/BUNDLE item types; description, SKU, category, currency, Decimal(18,4) base/variant prices, status and timestamps. DIGITAL/BUNDLE reserve types only; no delivery/composition engine.
+- Item create/read/update/soft delete; category management; variants; price-list foundation list/create; pagination/search/status/type/category filters; status changes and explicit public-store slug/publication settings.
+- Owner/Manager manage; Staff reads. Private requests recheck membership; upload write guards run before multipart decoding. Cross-tenant IDs cannot select or mutate unrelated records.
+- Safe image upload/read/removal. One file plus at most one metadata field, 2 MiB input, declared MIME matched to fully decoded PNG/JPEG/WebP content, 16-million-pixel limit, no animation, stripped/re-encoded WebP <=1600×1600 and <=1 MiB. At most ten images per item with a serialized database check. Binary content is excluded from JSON and served with nosniff/media CSP.
+- Merchant routes /catalog, /catalog/new, /catalog/:itemId, /catalog/:itemId/edit, /catalog/categories, /catalog/settings. English, Chinese and Malay interface labels; mobile and desktop browser workflows use real persisted data.
+- Customer PublicCatalog component at /stores/:slug and /stores/:slug/items/:itemId. Only enabled stores and ACTIVE nondeleted items are public. Explicit DTO excludes SKU, tenant identifiers, inactive variants, status/deletion fields, raw media bytes and all CRM/account data. Direct unpublished item/image URLs are denied.
+
+## Database and precision evidence
+
+Verified the database destination is localhost/nexora, no injected production database URL, and local Compose PostgreSQL/Redis are healthy. Additive migration `202611150003_catalog` creates the catalog enum/tables/indexes/FKs and adds private-by-default store routing fields to Tenant. SQL was inspected for absence of drops/truncation/deletes. Database CHECK constraints reject negative item/variant prices. Repeat deploy reports no pending migrations. Old M0/CRM migrations were not edited and no database was reset.
+
+Prices enter and leave the API as decimal strings; no frontend floating-point calculation. PostgreSQL round-trip of 99999999999999.9999 and 0.1000/0.2000 is verified; Decimal addition yields exactly 0.3000. Numeric JSON, exponent notation, excessive precision and negatives are rejected. Catalog unit-price precision does not claim currency settlement rounding or FX conversion.
+
+The globally unique public slug is a routing handle necessary for unambiguous /stores/:slug; item/category/variant/price-list business constraints include tenant scope. Category deletion conflicts while referenced, including by tombstoned items. Deleted item rows and their SKU reservations are retained.
+
+## Final validation
+
+| Command/check | Result | Evidence |
+| --- | --- | --- |
+| Frozen dependency install | PASS | Pinned workspace installation and updated lockfile; no integrity or TLS bypass. |
+| pnpm db:generate | PASS | Prisma Client generated with all five catalog models. |
+| pnpm db:migrate | PASS | Catalog migration applied only to local development DB; repeated deploy has no pending work. |
+| pnpm lint | PASS | All app/package ESLint checks, zero errors or warnings. |
+| pnpm typecheck | PASS | Apps/packages, API fixtures/tests, browser tests/configuration. |
+| pnpm test | PASS | API runner 37 passes (including 3 parent tests), Worker 1 pass; zero failures, skips or cancellations. Includes all M0/CRM tests, 3 catalog unit tests, 7 catalog integration scenarios and an independent real authentication-limit regression. |
+| pnpm build | PASS | Ten workspace builds including all portals, API and Worker; isolated production E2E builds also pass. |
+| pnpm test:e2e | PASS | Final run: 9 Chromium tests, 39.7 seconds, zero failures/skips/flaky outcomes. Catalog 2 + CRM 3 + M0 4. |
+| Item/category/variant CRUD | PASS | Creation, exact prices, scoped uniqueness, updates, unused-category removal, referenced-category conflict, variant changes/removal and item soft deletion. |
+| Tenant isolation/RBAC | PASS | Owner/Manager writes, Staff read-only, anonymous/nonmember denial, wrong-tenant object IDs, overposting and direct database cross-tenant category/variant/media inserts rejected. |
+| Public visibility | PASS | Draft/private/archived/deleted items and images denied; inactive variants and private fields absent from public responses. Store unpublish and slug conflicts tested. |
+| Upload security | PASS | Real decode/re-encode/read, MIME spoof, SVG, corrupt/truncated bytes, >2 MiB uploads, pixel-limit excess, pre-parse authorization, tenant image scope and concurrent ten-image cap. |
+| Language/responsiveness | PASS | Merchant language switches en/zh/ms; mobile catalog CRUD, images and publication; customer Chinese public detail at 390×844 has no horizontal overflow and was visually inspected. Desktop role flows also pass. |
+| Authentication controls | PASS | Production Data/session/limit implementation unchanged. Acceptance Redis isolation does not alter thresholds; twenty invalid-email checks return 401 and the twenty-first returns 429. |
+
+Latest browser JSON: test-results/e2e-results.json. Public mobile screenshot: test-results/catalog-public-mobile.png. Generated results, screenshots and potentially sensitive traces remain ignored. All business fixtures are uniquely scoped synthetic test records persisted through the real API/database; no mock data is rendered by the application.
+
+## Failures diagnosed and corrected
+
+1. Normal upload initially returned multipart "Too many parts". Corrected parser boundary accounting while retaining one-file/one-field, byte limits, full image validation and transactional count controls. Dependent image/public checks then passed.
+2. Browser navigation initially had duplicate Catalog labels, and a fixture expected uppercase account text despite M0 email normalization. Clarified navigation as Catalog/All items and normalized fixture email expectations.
+3. Item edit tests sometimes populated the old page's variant inputs before Next client navigation completed, then submitted unchanged item fields. Network traces established the cause. Added named item forms and scoped readiness/field interactions; retained the exact name/price assertions. Post-save/deletion navigation reads fresh page data. Full suite passes without retries or weakened assertions.
+4. Repeated acceptance registrations shared development Redis IP counters and correctly triggered 429, failing a later run. Test-only startup clients now use unique Redis key prefixes and require loopback development targets; no production authentication changes, flushed keys or raised thresholds. Added an explicit real limit-enforcement test and reran API and browser acceptance successfully.
+
+## Delivery and limits
+
+README and docs/M1-DESIGN.md updated with schemas, APIs, permissions, exact-price contract, upload limits and test isolation. Final feature commit SHA and matching remote verification are reported in the task delivery. No force push, branch deletion, secret staging, production DB modification, project recreation or data reset.
+
+PriceList is metadata/list-create foundation, without entries, overrides or discount resolution. Public prices use item and variant values. Images currently use bounded PostgreSQL byte storage, not a deployed object store/CDN. Digital fulfillment, bundle composition, cart, checkout, payment, orders and M1-C remain outside this delivery as requested. No outstanding failed required checks remain in the final accepted runs.
+
+---
+
+# Previous validation record (preserved)
+
 # NEXORA M1-A CRM — Latest acceptance
 
 Date: 2026-11-15 (Asia/Kuala_Lumpur). **M1-A: PASS in the local development environment. M0 regression: PASS.** M1-B/C/D remain unimplemented at this checkpoint. Prior M0 validation and source-recovery history are preserved below.
