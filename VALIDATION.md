@@ -1,3 +1,64 @@
+# NEXORA M1-C Orders — Latest acceptance
+
+Date: 2026-11-15 (Asia/Kuala_Lumpur). **M1-C: PASS for local development acceptance. M0/M1-A/M1-B regression: PASS.** No M1-D implementation, payment integration or production deployment was performed. Previous records are preserved below.
+
+## Scope and safety
+
+Continued clean feature/m1-core-business at fafefa10331aab82272b486cf88e7cf3fb7712d2, verified against GitHub at task start. Read project instructions, README, validation record, schema and existing API contracts. Preserved the existing applications, authentication, tenant controls, CRM, catalog, Redis limits and historical migrations/data.
+
+Verified the database destination remained localhost/nexora, with no injected production database URL/production mode and healthy local Compose PostgreSQL/Redis. Additive migration 202611150004_orders adds Order, OrderItem, OrderStatusHistory, OrderEvent and IdempotencyKey, tenant-scoped foreign keys and uniqueness, plus monetary integrity checks. It adds the composite CatalogVariant identity needed to bind selected variants to their parent item and tenant. Migration SQL was inspected for absence of table/column drops, resets or data deletion. Four migrations are recorded applied; repeat deploy reports no pending work. Old migrations were not edited.
+
+## Implemented engine
+
+- Real catalog pricing with optional active variants and CRM contact association; same-tenant and one-currency validation. Catalog/variant shared locks protect captured prices. Name/variant/SKU/unit-price and contact-name snapshots remain stable when catalog/CRM data changes.
+- Decimal-only money arithmetic with precision 40, unit-price Decimal(18,4) and order-total Decimal(24,4). All amounts cross HTTP as four-place strings. Discounts/tax are fixed at zero in this foundation; no FX, tax engine or payment-settlement rounding. Client prices, sums, currency, source, tenant and customer ownership fields are rejected.
+- Atomic creation of order, lines, history, audit and original idempotency response. Transaction advisory lock + tenant/actor/key uniqueness makes concurrent identical retries resolve to one order. Different payload/key reuse returns 409. Replay returns the original JSON response without repricing, even after later edits.
+- Mandatory current versions and row locks for draft edits/state actions; one winner under concurrent state updates. Every accepted write appends an audit event, and every status transition appends history. Draft changes retain before/after audit snapshots. Completed/cancelled orders have no permitted edits/transitions; no order delete endpoint.
+- Canonical tenant-prefixed /orders APIs and active-tenant /api/orders aliases, all session/member authenticated. Owner/Manager write; Staff reads. Search, filters and bounded pagination for lists, history and audit.
+- Merchant /orders, /orders/new, /orders/:id and /orders/:id/edit with three-language workspace, real searchable CRM/catalog selectors, server quote/summary, idempotent submission, draft edit and state/history/audit views. Existing off-page selections are labeled saved snapshots. Note/contact-only draft changes preserve original prices; explicit recalculation/replacement reprices on the server.
+- Customer ownership-filtered read APIs: /api/customer/orders and /api/customer/orders/:id. Require current session, source CUSTOMER and customerUserId matching that account. CRM email/contact, merchant membership or knowing an ID cannot grant this path. Customer DTO omits private notes, SKU, actor/audit and tenant/contact/account identifiers. Customer create remains a documented future M1-D contract, not an exposed endpoint or checkout UI.
+
+## Validated lifecycle
+
+DRAFT → PENDING/CONFIRMED/CANCELLED; PENDING → CONFIRMED/CANCELLED; CONFIRMED → PROCESSING/CANCELLED; PROCESSING → COMPLETED/CANCELLED. COMPLETED/CANCELLED are terminal. Only DRAFT supports line/contact/note editing. State transitions cannot be mixed with draft edits. The /confirm, /cancel and /complete actions independently enforce the backend rules; arbitrary status PATCH assignments are denied.
+
+## Final checks
+
+| Check | Outcome | Evidence |
+| --- | --- | --- |
+| pnpm install --frozen-lockfile | PASS | Pinned dependency set/lockfile retained; no new external dependencies or verification bypass. |
+| pnpm db:generate | PASS | Prisma Client generated with all five order models. |
+| pnpm db:migrate | PASS | Local additive migration applied; four successful migrations, no pending work, no reset. |
+| pnpm lint | PASS | All applications/packages, zero errors or warnings. |
+| pnpm typecheck | PASS | All apps/packages, API tests/fixtures and browser tests/configuration. |
+| pnpm test | PASS | API runner 55 passes including 4 parent tests; Worker 1 pass. Zero failures/skips/cancellations. New order coverage is 4 unit tests + 13 integration scenarios + their parent; all previous 37 API checks retained. |
+| pnpm build | PASS | All ten workspace builds, including the three portals, compiled API and Worker. Isolated E2E production builds also passed. |
+| pnpm test:e2e | PASS | Final Chromium run: 12 tests, 60.8 seconds, zero failures/skips/flaky results. Orders 3 + Catalog 2 + CRM 3 + M0 4. |
+| Correct totals/precision | PASS | 0.1000×3 + 0.2000×2 = 0.7000; selected variant 0.3333×3 = 0.9999. Large 999999999999999999.1000 round-trips through actual PostgreSQL; unit tests cover wide 24-digit results without default Decimal precision loss. |
+| Price tampering/atomicity | PASS | Supplied prices/totals/tenant/source/account fields rejected; invalid contact, unavailable/foreign items and mixed currency create no partial order/idempotency record. Changed server quote conflicts. |
+| Idempotency | PASS | Sequential replay, conflicting payload, tenant/actor scoping, retry after validation failure, and six concurrent same-key creates; one order, initial history and audit event, identical semantic responses. |
+| Concurrency/transitions | PASS | Racing confirm/cancel with one version produces one success and one 409, one version increment and one audit/history addition. Invalid transitions, stale versions and edits to terminal orders denied. |
+| History/audit | PASS | Creation, draft edits, exact transition order, reasons, safe actor fields, before/after snapshots and pagination verified. |
+| Tenant/RBAC/CRM | PASS | Owner/Manager write, Staff read-only, ordinary account rejection, wrong-tenant detail/history/events/action denial, scoped CRM association and database composite reference failures. Active-tenant aliases verified. |
+| Customer privacy foundation | PASS | Positive own-customer reads tested with explicit local DB fixtures. Other customers and merchant creators cannot use that path; matching CRM email grants nothing. Private DTO fields absent. Anonymous reads denied; no bare public order read or customer-create route. |
+| Browser/localization/mobile | PASS | Real multi-line quote/create/replay, CRM association, note edit, complete lifecycle, cancellation, search/status/source filters, staff/manager access, merchant switching and private ID denial. English/Chinese/Malay headings verified. 390×844 completed order has no horizontal overflow; screenshot visually inspected. |
+
+Final browser artifact: test-results/e2e-results.json. Phone screenshot: test-results/order-mobile-completed.png. Generated artifacts and cookie-bearing traces remain ignored and are not committed. Real test fixtures use isolated local tenants/accounts and independent Redis counter prefixes; no mock business records are rendered, no tables/Redis keys are cleared.
+
+## Diagnosed initial failures
+
+The first API run failed two test assertions/fixtures (plus their parent): concurrent response comparison incorrectly depended on PostgreSQL JSONB object-key order, and a manually seeded customer-read fixture used a 41-character number in a 40-character column. Changed to semantic deep equality without dropping any field comparison, and corrected that fixture's identifier length. Reran the complete API suite successfully, then added the large-value PostgreSQL precision case and reran: 55 passes. No assertion, authorization or concurrency check was bypassed.
+
+The full browser suite passed on its first M1-C execution. Required checks were rerun after final test changes. No unresolved failed required check remains.
+
+## Delivery boundary
+
+README, AGENTS and docs/M1-DESIGN.md updated; final commit SHA and matching remote verification are provided in the task delivery. No forced push, branch deletion, secret staging, database reset or direct production modification. Discount/tax rules, payments, AI/appointment processing and customer order creation/checkout remain unimplemented; the customer creation/authorization contract is documented for M1-D, which was not started.
+
+---
+
+# Previous validation record (preserved)
+
 # NEXORA M1-B Catalog — Latest acceptance
 
 Date: 2026-11-15 (Asia/Kuala_Lumpur). **M1-B: PASS for local development acceptance. M0 and M1-A regression: PASS.** No M1-C development or production deployment was performed. Previous validation records are preserved below.

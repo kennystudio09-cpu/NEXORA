@@ -19,6 +19,11 @@ model User {
   memberships Membership[]
   sessions Session[]
   customerFollowUps CustomerFollowUp[]
+  createdOrders Order[] @relation("OrderCreator")
+  customerOrders Order[] @relation("OrderCustomer")
+  orderHistory OrderStatusHistory[]
+  orderEvents OrderEvent[]
+  idempotencyKeys IdempotencyKey[]
 }
 model Tenant {
   id String @id @default(uuid())
@@ -32,6 +37,7 @@ model Tenant {
   catalogItems CatalogItem[]
   catalogCategories CatalogCategory[]
   priceLists PriceList[]
+  orders Order[]
 }
 model Membership {
   userId String
@@ -73,6 +79,7 @@ model Customer {
   updatedAt DateTime @updatedAt @map("updated_at")
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   followUps CustomerFollowUp[]
+  orders Order[]
   @@unique([tenantId, id])
   @@index([tenantId, createdAt, id])
   @@index([tenantId, status])
@@ -132,6 +139,7 @@ model CatalogItem {
   category CatalogCategory? @relation(fields: [tenantId, categoryId], references: [tenantId, id], onDelete: Restrict)
   variants CatalogVariant[]
   media CatalogMedia[]
+  orderItems OrderItem[]
   @@unique([tenantId, id])
   @@unique([tenantId, sku])
   @@index([tenantId, status, createdAt, id])
@@ -146,6 +154,8 @@ model CatalogVariant {
   active Boolean @default(true)
   item CatalogItem @relation(fields: [tenantId, itemId], references: [tenantId, id], onDelete: Restrict)
   @@unique([tenantId, id])
+  orderItems OrderItem[]
+  @@unique([tenantId, itemId, id])
   @@unique([tenantId, itemId, name])
   @@unique([tenantId, sku])
 }
@@ -175,4 +185,111 @@ model PriceList {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   @@unique([tenantId, id])
   @@unique([tenantId, name])
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+enum OrderSource {
+  MERCHANT
+  CUSTOMER
+  AI
+  APPOINTMENT
+}
+model Order {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  orderNumber String @db.VarChar(40)
+  contactId String?
+  contactNameSnapshot String? @db.VarChar(120)
+  customerUserId String?
+  createdById String
+  source OrderSource @default(MERCHANT)
+  status OrderStatus @default(DRAFT)
+  currencyCode String @db.VarChar(3)
+  subtotal Decimal @db.Decimal(24,4)
+  discountTotal Decimal @default(0) @db.Decimal(24,4)
+  taxTotal Decimal @default(0) @db.Decimal(24,4)
+  grandTotal Decimal @db.Decimal(24,4)
+  notes String @default("") @db.VarChar(4000)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contact Customer? @relation(fields: [tenantId, contactId], references: [tenantId, id], onDelete: Restrict)
+  customerUser User? @relation("OrderCustomer", fields: [customerUserId], references: [id], onDelete: Restrict)
+  createdBy User @relation("OrderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items OrderItem[]
+  history OrderStatusHistory[]
+  events OrderEvent[]
+  idempotencyKeys IdempotencyKey[]
+  @@unique([tenantId, id])
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId, status, createdAt, id])
+  @@index([customerUserId, source, createdAt, id])
+  @@index([tenantId, contactId])
+}
+model OrderItem {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  position Int
+  catalogItemId String
+  catalogVariantId String?
+  itemNameSnapshot String @db.VarChar(160)
+  variantNameSnapshot String? @db.VarChar(100)
+  skuSnapshot String? @db.VarChar(64)
+  unitPriceSnapshot Decimal @db.Decimal(18,4)
+  quantity Int
+  lineTotal Decimal @db.Decimal(24,4)
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  catalogItem CatalogItem @relation(fields: [tenantId, catalogItemId], references: [tenantId, id], onDelete: Restrict)
+  catalogVariant CatalogVariant? @relation(fields: [tenantId, catalogItemId, catalogVariantId], references: [tenantId, itemId, id], onDelete: Restrict)
+  @@unique([tenantId, orderId, position])
+}
+model OrderStatusHistory {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  actorId String
+  fromStatus OrderStatus?
+  toStatus OrderStatus
+  version Int
+  reason String @default("") @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([tenantId, orderId, version])
+}
+model OrderEvent {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  actorId String
+  type String @db.VarChar(32)
+  version Int
+  payload Json
+  createdAt DateTime @default(now())
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([tenantId, orderId, version])
+}
+model IdempotencyKey {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  actorId String
+  key String @db.VarChar(128)
+  requestHash String @db.VarChar(64)
+  orderId String @map("order_id")
+  response Json
+  createdAt DateTime @default(now())
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([tenantId, actorId, key])
+  @@index([tenantId, orderId])
 }

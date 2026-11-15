@@ -8,6 +8,8 @@ import { CrmController } from "./crm.controller";
 import { CrmService } from "./crm.service";
 import { CatalogController, PublicCatalogController, CatalogReadGuard, CatalogWriteGuard } from "./catalog.controller";
 import { CatalogService } from "./catalog.service";
+import { OrdersController, CustomerOrdersController, OrderReadGuard, OrderWriteGuard } from "./orders.controller";
+import { OrdersService } from "./orders.service";
 export { Data } from "./data";
 import type { Request, Response, NextFunction } from "express";
 
@@ -119,7 +121,7 @@ class ApiController {
     return { users: await this.data.db.user.count(), merchants: await this.data.db.tenant.count() };
   }
 }
-@Module({ controllers: [ApiController, CrmController, CatalogController, PublicCatalogController], providers: [Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard] })
+@Module({ controllers: [ApiController, CrmController, CatalogController, PublicCatalogController, OrdersController, CustomerOrdersController], providers: [Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard, OrdersService, OrderReadGuard, OrderWriteGuard] })
 class AppModule {}
 export async function createApp() {
   if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") throw new Error("Production requires COOKIE_SECURE=true and HTTPS");

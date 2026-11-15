@@ -1,6 +1,6 @@
 # NEXORA
 
-AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. Orders, checkout and AI providers remain later modules.
+AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. M1-C adds a transactional merchant order engine. Customer checkout, payments and AI providers remain later modules.
 
 ## Workspace
 
@@ -78,4 +78,18 @@ Enable a unique store slug in `/catalog/settings` to make ACTIVE items publicly 
 
 Uploads accept decoded PNG/JPEG/WebP up to 2 MiB, re-encode stripped WebP, and enforce pixel/output-size limits plus a transactional ten-image cap. Images are stored as tenant-scoped database bytes for this foundation. No upload directory or file path is exposed.
 
-Apply additive migration `202611150003_catalog` only to the intended development database. PriceList overrides, digital delivery, bundle composition, cart/payment and M1-C are not implemented. See docs/M1-DESIGN.md for the full fields, API contracts and tested boundaries.
+Apply additive migration `202611150003_catalog` only to the intended development database. PriceList overrides, digital delivery, bundle composition, cart/payment are not implemented. See docs/M1-DESIGN.md for the full fields, API contracts and tested boundaries.
+
+## M1-C Merchant orders
+
+Merchant `/orders`, `/orders/new`, `/orders/:id` and `/orders/:id/edit` provide real catalog/CRM selection, server-priced quotes, draft editing, state management, search/filters and paginated history/audit. English, Chinese and Malay use the shared merchant workspace language selector. Owner/Manager write; Staff read only.
+
+Canonical API prefix is `/api/tenants/:tenantId/orders`. `/api/orders` aliases derive the active merchant from the authenticated session, still checking membership. Create requires `Idempotency-Key`; state/edit requests require the current `version`. Quote and order amounts are always calculated server-side from ACTIVE catalog items and optional active variants. The UI never computes money. One currency per order, 1–100 distinct item/variant lines, integer quantities 1–10000; catalog unit prices remain Decimal(18,4), order totals Decimal(24,4). Discounts and tax are fixed at zero in this foundation; no payment or FX/currency-settlement rounding is claimed.
+
+Orders snapshot item/variant names, SKU and unit prices. Note/contact-only draft edits keep existing price snapshots; explicitly replacing lines recalculates from the current catalog. A quote hash detects catalog changes between preview and create/reprice. Every write is transactional with an audit event. Row locks and mandatory versions prevent lost state updates. Idempotency persists original responses per tenant/actor/key, including concurrent retries; a changed payload with the same key returns conflict.
+
+Draft → Pending/Confirmed/Cancelled; Pending → Confirmed/Cancelled; Confirmed → Processing/Cancelled; Processing → Completed/Cancelled. Completed/Cancelled are terminal. Only Draft permits profile/line edits; explicit state actions are checked by the API.
+
+`GET /api/customer/orders` and `GET /api/customer/orders/:id` form an ownership-filtered read foundation: source CUSTOMER and customerUserId must match the signed-in account. Matching CRM email/contactId or knowing an order ID never grants access. Merchant orders do not automatically attach customer accounts. Customer order creation is documented for future M1-D only and is not exposed; no customer purchase pages, cart, payment or M1-D implementation was added.
+
+Apply additive migration `202611150004_orders` only to the local development DB. It retains existing catalog/CRM data and adds order models, composite references, uniqueness and monetary checks. See docs/M1-DESIGN.md for transaction, concurrency and customer API contracts.
