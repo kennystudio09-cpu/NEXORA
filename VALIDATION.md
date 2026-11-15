@@ -1,3 +1,56 @@
+# M2-B AI support acceptance — 2026-11-15
+
+Status: **BLOCKED for full/live AI acceptance — OPENAI_API_KEY is not configured.** Development implementation, Mock evaluations and business/support regression checks pass. Mock results are not live OpenAI verification. Branch feature/m2-ai-support was created from verified/pushed M2-A 8ce4bc78c27c6d8eba65b6e7c8ffe0628c8be96b. The delivery reports the pushed/verified SHA. Prior validation records below remain unchanged.
+
+## Implemented scope
+
+- Independent AIService/AIKnowledge and server-only ai-core adapter interface. OpenAI Responses integration uses fixed HTTPS, server environment credentials, bounded JSON-schema selection, no tools, timeouts, one bounded retry, distributed concurrency/rate controls and safe error codes. API keys/raw provider errors/full CRM profiles are never returned or logged.
+- Seven tenant-scoped Prisma models: AIAgent, AIAgentVersion, AISettings, AIUsageRecord, KnowledgeBase, KnowledgeDocument, KnowledgeChunk. Composite foreign keys enforce source/agent/conversation/trigger scope. Defaults disable automatic AI; Owner/Manager controls name, welcome, deterministic safe tone greeting, default language, human/AI priority and budgets. Immutable configuration/FAQ audit and old index revisions retained.
+- Three-language verified FAQ create/edit/archive/reindex; bounded lexical English/Malay/Chinese retrieval and current public hours/contact/address/catalog price facts. No pgvector dependency. Only ACTIVE public catalog/variants are used, with exact Decimal strings. Price questions use catalog facts only; private orders, stock and other tenant data are unavailable to the model.
+- Model selects only allowed evidence IDs; server renders complete original facts plus numbered citations. Unknown IDs/tool calls/injection are rejected. Low confidence, missing evidence, complaints/refunds/payment disputes and provider failures request human handling. No refund/order/DB tool is exposed to the model.
+- Persistent queued execution is atomic with customer message acceptance, unique by tenant/trigger, CAS-claimed by adapter identity and recovered conservatively after interruption. Final AI Message/deliveries/audit/execution outcome commit together, then use the existing authorized WebSocket invalidations. Duplicated customer submits cannot enqueue or reply twice.
+- Source/config/sequence/generation checks cancel stale output after changed prices/knowledge/configuration, a newer message, closure, assignment or human reply/takeover. Customers request human handling; only Owner/Manager can explicitly allow AI again. Human-first and prior assigned rooms keep human priority unless explicitly resumed.
+- Merchant /ai settings, FAQ editor, retrieval/Playground, safe usage/logs and audit; Inbox takeover controls. Customer Widget identifies AI vs Human agent, cites real sources and displays unavailable/human-wait state. English/Chinese/Malay and mobile layout. No invented AI presence or successful response without a provider.
+
+## Verification matrix
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| pnpm install --frozen-lockfile | PASS | Only local ai-core workspace dependency added; no new external provider/vector dependency. Existing lockfile remains frozen-installable. |
+| pnpm db:generate | PASS | Prisma Client generated for all seven AI/knowledge models and additive message/conversation fields. |
+| pnpm db:migrate | PASS | 202611150007_ai_support applied to local development PostgreSQL; seven migrations current, PostgreSQL/Redis healthy. No reset/truncation/volume removal/production mutation. Existing six migrations unchanged. Human participants preserved; nullable user ID is used only for actual AI participants, with one-per-conversation partial unique index. |
+| pnpm lint | PASS | All15 tasks; zero lint errors/warnings. |
+| pnpm typecheck | PASS | All15 tasks, API fixtures and Playwright types. |
+| pnpm test | PASS | API96 passes including7 parent tests; Worker1 pass. All82 prior API checks retained, plus14 explicit AI Mock/adapter/grounding/cost/concurrency checks. Zero failed/skipped/cancelled. |
+| pnpm test:ai | PASS — MOCK | Focused14 checks use real PostgreSQL/Redis and explicitly named mock-evaluation provider or mocked HTTP transport. No live model claim. |
+| pnpm build | PASS | All10 normal workspace builds; isolated E2E production builds also succeed. |
+| pnpm test:e2e | PASS | Final22 passes in94.4s, zero failures/skips/flaky results. Ordinary OpenAI adapter, no server key; includes all20 old browser regressions +2 AI admin/no-key/human-fallback cases. |
+| pnpm test:e2e:ai-mock | PASS — MOCK | Final1 pass in16.6s, zero failure/skip/flaky. Separate loopback/nonproduction test startup injects mock-e2e; validates AI sender/citations/realtime/localization/takeover. Production startup never reads this mock switch. |
+| pnpm test:ai:live | BLOCKED | OPENAI_API_KEY_NOT_CONFIGURED; attempted=false, zero external model calls. Script deliberately exits2 and writes explicit ignored JSON evidence, not a fabricated success. |
+| Tenant/role/source isolation | PASS | Distinct tenant settings/knowledge, Staff management403, wrong-tenant document404, composite FK failure, model IDs from another tenant rejected. Original account/membership/conversation scopes retained. |
+| FAQ/reindex/current prices | PASS | All language sources, updates replace active index with appended revisions; archived/DRAFT items excluded. 12.3456 Decimal price cited from actual catalog. A price change during model work cancels the stale reply. |
+| Injection/no-knowledge/no-tools | PASS — MOCK | Instruction-bearing FAQ rejected; injection/refund/private-order/stock requests do not call tools. Unknown query transfers to humans. Provider may choose only allowed IDs; unexpected properties/tool-call output are rejected. No arbitrary generated factual answer is accepted. |
+| Duplicate/concurrent/takeover behavior | PASS — MOCK | Same customer message key produces one job/one AI response; human takeover while provider is blocked cancels the result. Assigned human room can explicitly resume AI; human-first performs no model call. Global occupied slots and tenant rate/quota stop extra calls. |
+| Provider timeout/retry/unavailable | PASS — MOCK transport | Abort timeout,429 retry, strict schema, usage parsing, empty-key no-transport-call, provider rate/low-confidence/unsafe-output handoffs. These validate protocol/business behavior, not real endpoint/model quality. |
+| Usage/cost honesty | PASS | usageKnown distinguishes actual returned counts from unknown usage. Decimal reference estimate tested (200 input+20 output =0.00011200 USD for reference gpt-4.1-mini rates); Mock/unknown model cost=null. Reserves cover two attempts; uncertain failures/retries debit conservatively. Estimates are not invoices. |
+| UI and client-secret boundary | PASS | Responsive390px admin screenshot visually inspected, no overflow; three-language admin/widget checks and role restriction. Browser JS chunks contain no server OpenAI adapter/API-key references. Actual local secret values absent from tracked/new source. Environment/build/cache/DB/browser artifacts ignored. |
+
+## Diagnosed and fixed
+
+Initial Prisma generation identified a missing reverse delivery relation and composite one-to-one uniqueness; both were corrected before applying the new migration. Initial lint identified an unused serializer, then it was used for immutable knowledge-change audit snapshots. Browser checks found unassociated select labels and an ambiguous partial label matching both UI language and default AI language; explicit translated labels and exact scoped test locators corrected them without weakening permission or content assertions.
+
+Review strengthened final source locks/fingerprints, human generation cancellation, explicit resume of assigned rooms, cancellation-to-human state instead of leaving a pending spinner, full-fact output bounds, conservative retry reservations/charges, safe tone rendering, neutral AI/human capability copy and Unknown usage presentation. Mock provider job filtering prevents test adapters being processed as production OpenAI work. No mock adapter can be selected through application HTTP APIs.
+
+## Live acceptance blocker and limits
+
+To complete full M2-B acceptance, an operator must configure OPENAI_API_KEY in the server secret environment (never chat, NEXT_PUBLIC or Git), ensure api.openai.com access/model entitlement/billing, and run pnpm test:ai:live. The live script uses synthetic noncustomer facts in English/Chinese/Malay. Until that passes, model quality, real API authentication/latency/token reporting and actual billed behavior are unverified. This is a required blocker, not an approval to deploy production or a claim that the real model worked.
+
+Lexical retrieval is bounded; there is no embedding/vector search, automatic FAQ translation, arbitrary file ingestion, inventory/order lookup, financial action, autonomous Agent tool, external messaging connector or M2-C. Sources must be approved customer-facing merchant facts. Human handoff requests appear in the authorized Inbox without pretending an agent was assigned or is online. UTC monthly budget and nullable reference cost estimates are conservative controls, not exact billing reconciliation. Automatic AI remains disabled by default.
+
+Artifacts are ignored under test-results: ordinary and separate Mock browser JSON, mobile screenshots and ai-live-result.json. Documentation: README.md and docs/M2-B-DESIGN.md. Execution logs record the actual model at job claim time, including across server model changes. Source/Git synchronization is completed after these checks; no force push, merge or production publishing.
+
+---
+
 # M2-A human support acceptance — 2026-11-15
 
 Status: **PASS — development environment acceptance.** Implementation branch: feature/m2-customer-support, created from verified/pushed M1-D 23dc30ff5b1355aca275e8b76258d8eb81377a80. Git commit/push and remote SHA verification follow these checks; the delivery reports the verified SHA. Prior M0/M1 validation history below is preserved unchanged.

@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
-  testDir: "./tests/e2e", fullyParallel: false, workers: 1, timeout: 60000,
+  testDir: "./tests/e2e", testMatch: process.env.NEXORA_AI_MOCK_E2E==="1"?"**/ai-mock.spec.ts":"**/*.spec.ts", testIgnore:process.env.NEXORA_AI_MOCK_E2E==="1"?[]:["**/ai-mock.spec.ts"], fullyParallel: false, workers: 1, timeout: 60000,
   reporter: [["list"], ["json", { outputFile: "test-results/e2e-results.json" }]],
   use: { baseURL: "http://localhost:3101", trace: "retain-on-failure", launchOptions: { executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium", args: ["--no-sandbox"] } },
   webServer: [

@@ -43,6 +43,9 @@ model Tenant {
   orders Order[]
   storefrontKey String @unique @default(dbgenerated("(gen_random_uuid())::text")) @map("storefront_key")
   storefrontProfile StorefrontProfile?
+  aiAgent AIAgent?
+  aiSettings AISettings?
+  knowledgeBases KnowledgeBase[]
   supportChannels SupportChannel[]
   supportConversations Conversation[]
   customerAccountLinks CustomerAccountLink[]
@@ -372,6 +375,10 @@ model Conversation {
   channelId String
   customerUserId String
   contactId String
+  aiHumanRequired Boolean @default(false)
+  aiState String @default("HUMAN") @db.VarChar(32)
+  aiGeneration Int @default(0)
+  aiUsage AIUsageRecord[]
   status ConversationStatus @default(OPEN)
   lastSequence Int @default(0)
   version Int @default(1)
@@ -394,13 +401,13 @@ model ConversationParticipant {
   id String @id @default(uuid())
   tenantId String @map("tenant_id")
   conversationId String
-  userId String
+  userId String?
   senderType SupportSenderType
   active Boolean @default(true)
   lastReadSequence Int @default(0)
   joinedAt DateTime @default(now())
   conversation Conversation @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
-  user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  user User? @relation(fields:[userId],references:[id],onDelete:Restrict)
   messages Message[]
   deliveries MessageDelivery[]
   @@unique([tenantId,conversationId,id])
@@ -422,6 +429,8 @@ model Message {
   conversation Conversation @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
   sender ConversationParticipant @relation(fields:[tenantId,conversationId,senderParticipantId],references:[tenantId,conversationId,id],onDelete:Restrict)
   deliveries MessageDelivery[]
+  aiTriggers AIUsageRecord[]
+  citations Json @default("[]")
   @@unique([tenantId,conversationId,id])
   @@unique([tenantId,conversationId,sequence])
   @@unique([tenantId,conversationId,senderParticipantId,clientKey])
@@ -463,4 +472,125 @@ model MessageDelivery {
   participant ConversationParticipant @relation(fields:[tenantId,conversationId,participantId],references:[tenantId,conversationId,id],onDelete:Restrict)
   @@unique([tenantId,messageId,participantId])
   @@index([tenantId,conversationId,participantId,status])
+}
+
+model AIAgent {
+ id String @id @default(uuid())
+ tenantId String @unique @map("tenant_id")
+ name String @default("NEXORA Assistant") @db.VarChar(80)
+ welcome String @default("") @db.VarChar(300)
+ tone String @default("PROFESSIONAL") @db.VarChar(20)
+ language String @default("en") @db.VarChar(2)
+ revision Int @default(1)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+ versions AIAgentVersion[]
+ settings AISettings?
+ usages AIUsageRecord[]
+ @@unique([tenantId,id])
+}
+model AIAgentVersion {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ agentId String
+ revision Int
+ actorId String
+ action String @db.VarChar(32)
+ snapshot Json
+ createdAt DateTime @default(now())
+ agent AIAgent @relation(fields:[tenantId,agentId],references:[tenantId,id],onDelete:Restrict)
+ @@unique([tenantId,agentId,revision])
+}
+model AISettings {
+ @@unique([tenantId,agentId])
+ tenantId String @id @map("tenant_id")
+ agentId String @unique
+ enabled Boolean @default(false)
+ autoReply Boolean @default(false)
+ mode String @default("HUMAN_FIRST") @db.VarChar(20)
+ tokenQuota Int @default(100000)
+ requestsPerMinute Int @default(10)
+ period String @default("") @db.VarChar(7)
+ usedTokens Int @default(0)
+ reservedTokens Int @default(0)
+ updatedAt DateTime @updatedAt
+ tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+ agent AIAgent @relation(fields:[tenantId,agentId],references:[tenantId,id],onDelete:Restrict)
+}
+model AIUsageRecord {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ agentId String
+ agentRevision Int
+ conversationId String?
+ triggerMessageId String?
+ actorId String
+ requestKey String @db.VarChar(128)
+ kind String @db.VarChar(16)
+ status String @default("PENDING") @db.VarChar(20)
+ reason String @default("") @db.VarChar(40)
+ provider String @default("openai") @db.VarChar(32)
+ model String @db.VarChar(80)
+ promptHash String @db.VarChar(64)
+ language String @db.VarChar(2)
+ inputTokens Int @default(0)
+ outputTokens Int @default(0)
+ reservedTokens Int @default(0)
+ estimatedCostUsd Decimal? @db.Decimal(18,8)
+ usageKnown Boolean @default(false)
+ latencyMs Int @default(0)
+ attempts Int @default(0)
+ evidence Json @default("[]")
+ createdAt DateTime @default(now())
+ startedAt DateTime?
+ completedAt DateTime?
+ agent AIAgent @relation(fields:[tenantId,agentId],references:[tenantId,id],onDelete:Restrict)
+ conversation Conversation? @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
+ trigger Message? @relation(fields:[tenantId,conversationId,triggerMessageId],references:[tenantId,conversationId,id],onDelete:Restrict)
+ @@unique([tenantId,id])
+ @@unique([tenantId,triggerMessageId])
+ @@unique([tenantId,actorId,requestKey])
+ @@index([status,createdAt])
+}
+model KnowledgeBase {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ name String @default("Support") @db.VarChar(80)
+ createdAt DateTime @default(now())
+ tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+ documents KnowledgeDocument[]
+ @@unique([tenantId,id])
+ @@unique([tenantId,name])
+}
+model KnowledgeDocument {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ baseId String
+ title String @db.VarChar(120)
+ questions Json
+ answers Json
+ status String @default("ACTIVE") @db.VarChar(16)
+ revision Int @default(1)
+ actorId String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ base KnowledgeBase @relation(fields:[tenantId,baseId],references:[tenantId,id],onDelete:Restrict)
+ chunks KnowledgeChunk[]
+ @@unique([tenantId,id])
+ @@index([tenantId,status])
+}
+model KnowledgeChunk {
+ id String @id @default(uuid())
+ tenantId String @map("tenant_id")
+ documentId String
+ revision Int
+ language String @db.VarChar(2)
+ searchText String @db.VarChar(2000)
+ answer String @db.VarChar(2000)
+ active Boolean @default(true)
+ createdAt DateTime @default(now())
+ document KnowledgeDocument @relation(fields:[tenantId,documentId],references:[tenantId,id],onDelete:Restrict)
+ @@unique([tenantId,documentId,revision,language])
+ @@index([tenantId,active,language])
 }

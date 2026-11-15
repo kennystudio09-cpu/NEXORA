@@ -1,3 +1,6 @@
+import {AIController} from "./ai.controller";
+import {AIService} from "./ai.service";
+import {AIKnowledge} from "./ai.knowledge";
 import {SupportController,SupportOpenController} from "./support.controller";
 import {SupportService} from "./support.service";
 import {SupportRealtime} from "./support.realtime";
@@ -127,7 +130,7 @@ class ApiController {
     return { users: await this.data.db.user.count(), merchants: await this.data.db.tenant.count() };
   }
 }
-@Module({ controllers: [SupportController,SupportOpenController,ApiController, CrmController, CatalogController, PublicCatalogController, OrdersController, CustomerOrdersController, StorefrontController, StorefrontPublicController, StorefrontCheckoutController], providers: [SupportService,SupportRealtime,SupportBus,Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard, OrdersService, OrderReadGuard, OrderWriteGuard, StorefrontService] })
+@Module({ controllers: [AIController,SupportController,SupportOpenController,ApiController, CrmController, CatalogController, PublicCatalogController, OrdersController, CustomerOrdersController, StorefrontController, StorefrontPublicController, StorefrontCheckoutController], providers: [AIService,AIKnowledge,SupportService,SupportRealtime,SupportBus,Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard, OrdersService, OrderReadGuard, OrderWriteGuard, StorefrontService] })
 class AppModule {}
 export async function createApp() {
   if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") throw new Error("Production requires COOKIE_SECURE=true and HTTPS");

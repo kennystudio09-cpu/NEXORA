@@ -21,6 +21,8 @@ export class SupportController{
  @Post("conversations/:id/assign") async assign(@Req() req:Request,@Param("id") id:string,@Body() b:unknown){return this.service.change(await this.actor(req),id,"assign",b);}
  @Post("conversations/:id/close") async close(@Req() req:Request,@Param("id") id:string,@Body() b:unknown){return this.service.change(await this.actor(req),id,"close",b);}
  @Post("conversations/:id/reopen") async reopen(@Req() req:Request,@Param("id") id:string,@Body() b:unknown){return this.service.change(await this.actor(req),id,"reopen",b);}
+ @Post("conversations/:id/human") async human(@Req() req:Request,@Param("id") id:string,@Body() v:unknown){body(v,[]);return this.service.aiControl(await this.actor(req),id);}
+ @Post("conversations/:id/ai-resume") async resume(@Req() req:Request,@Param("id") id:string,@Body() v:unknown){body(v,[]);return this.service.aiControl(await this.actor(req),id,true);}
  @Get("conversations/:id/events") async events(@Req() req:Request,@Param("id") id:string){return this.service.events(await this.actor(req),id);}
 }
 @Controller("customer/stores/:slug/support")

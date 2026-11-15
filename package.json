@@ -14,7 +14,10 @@
     "test": "node --env-file=.env node_modules/turbo/bin/turbo run test --concurrency=1",
     "db:generate": "node --env-file=.env node_modules/turbo/bin/turbo run db:generate",
     "db:migrate": "node --env-file=.env node_modules/turbo/bin/turbo run db:migrate",
-    "test:e2e": "node --env-file=.env scripts/e2e.mjs"
+    "test:e2e": "node --env-file=.env scripts/e2e.mjs",
+    "test:ai": "node --env-file=.env scripts/ai-eval.mjs",
+    "test:ai:live": "node --env-file=.env scripts/ai-live-check.mjs",
+    "test:e2e:ai-mock": "NEXORA_AI_MOCK_E2E=1 node --env-file=.env scripts/e2e.mjs"
   },
   "devDependencies": {
     "turbo": "2.5.6",

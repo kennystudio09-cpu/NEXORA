@@ -1,6 +1,6 @@
 # NEXORA
 
-AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. M1-C adds a transactional merchant order engine. M1-D adds a real Customer Portal storefront, per-store cart, authenticated unpaid checkout and private customer receipts. M2-A adds persistent human support with a merchant Unified Inbox and real-time customer widget. Payments and AI support remain unavailable.
+AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. M1-C adds a transactional merchant order engine. M1-D adds a real Customer Portal storefront, per-store cart, authenticated unpaid checkout and private customer receipts. M2-A adds persistent human support with a merchant Unified Inbox and real-time customer widget. M2-B adds a grounded AI adapter and tenant FAQ knowledge with automatic replies opt-in. Real OpenAI acceptance requires a server key; payments remain unavailable.
 
 ## Workspace
 
@@ -12,7 +12,7 @@ AI Business Operating System, Malaysia first. M0 includes account sessions, merc
 | NestJS API | apps/api | 4000 |
 | BullMQ Worker | apps/worker | Redis queue nexora |
 
-Shared packages: database (Prisma), auth (scrypt/session cryptography), ui (portal components), shared (CRM/catalog/order/storefront contracts and translations) and ai-core (reserved for later implementation).
+Shared packages: database (Prisma), auth (scrypt/session cryptography), ui (portal components), shared (CRM/catalog/order/storefront contracts and translations) and ai-core (server provider adapter and grounded selection helpers).
 
 ## Development
 
@@ -104,7 +104,7 @@ Customer `/account/register` and `/account/login` use the existing opaque HttpOn
 
 `/s/<slug>/cart` and `/checkout` use a real server quote, then create a PENDING order with source CUSTOMER, channel `customer_portal` and payment UNPAID through the M1-C engine. Every receipt explicitly says no payment has been taken. Identical checkout retries reuse a sessionStorage idempotency key scoped to store/account/payload; allow browser storage for durable retry behavior. After a successful response the attempt is cleared, so an intentional repeat purchase gets a fresh key. Changed quote terms require review. `/account/orders` and `/account/orders/<id>` expose only that account's safe receipt; use Refresh status to see merchant changes. Merchant `/orders` includes these orders and retains all existing RBAC/state/history/audit rules.
 
-Contact links appear only when supplied by the merchant. The AI widget location explicitly says AI support is unavailable. M2-A adds the human chat widget described below; real payment, fulfillment and fake online status are not implemented. API/data model details: [M1 design](docs/M1-DESIGN.md).
+Contact links appear only when supplied by the merchant. AI availability is shown in the chat window. M2-A adds human chat and M2-B adds optional grounded AI as described below; real payment, fulfillment and fake online status are not implemented. API/data model details: [M1 design](docs/M1-DESIGN.md).
 
 ## M2-A Human customer support
 
@@ -119,3 +119,24 @@ WebSocket `/api/support/socket` uses a one-time 30-second ticket from the scoped
 For more than one API instance, set `SUPPORT_REDIS_ADAPTER=true` on instances sharing PostgreSQL and Redis. The implemented adapter broadcasts metadata-only invalidations through Redis Pub/Sub with origin-loop suppression. Default is single-node local notification. Connection quotas are per node; distributed connection budgeting and production capacity tuning remain deployment work. Tests include two actual API instances using Redis and PostgreSQL.
 
 Apply only additive migration `202611150006_support` to the intended development database using `pnpm db:migrate`; never reset data. Seven new tenant-scoped models and API/permission/transport/attachment contracts are documented in [M2-A design](docs/M2-A-DESIGN.md). No anonymous chat, attachment upload/download, external messaging channel, M2-B AI or real payment is enabled.
+
+## M2-B Grounded AI support
+
+Merchant `/ai` manages AI name/welcome/tone/default language, disabled-by-default automatic replies, human-first/AI-first mode, token budget/rate, three-language FAQ revision/index, evidence search, Playground, safe execution logs and configuration audit. Owner/Manager only; Staff keep their existing assigned human Inbox scope. FAQ archive preserves older chunks. Evidence search uses real tenant FAQ/public hours/contact/catalog prices without requiring a model; it is explicitly separate from an AI call.
+
+Set **server-only** `OPENAI_API_KEY`, optional `OPENAI_MODEL` (default gpt-4.1-mini) and `AI_TIMEOUT_MS` (default8000). Never use NEXT_PUBLIC keys or commit .env. Without a key the UI explicitly says OpenAI is unavailable, no AI response is fabricated, and customers can request a human. Enable automatic replies + AI-first only after reviewing FAQ truth and the live provider check. Human-first always defers to humans; sticky takeovers require an Owner/Manager's explicit Allow AI again.
+
+The model selects only cited evidence IDs. Server code renders original verified text/current Decimal prices and cannot execute model tools, read other tenants, access private order/stock data or perform refunds/order edits. Unsupported, complaint/refund/payment-dispute, prompt-injection, uncertain or unavailable cases go to the human Inbox. Existing assigned rooms and employee replies retain human priority; in-flight AI output is cancelled on takeover, closure, source changes or newer customer messages. Customer messages enqueue persistent jobs atomically; polling workers claim jobs once and recover interrupted calls conservatively.
+
+The Widget distinguishes AI assistant and Human agent, shows unavailable/waiting states and offers Request human support. Customer AI messages, numbered citations, read/unread and real-time delivery use the M2-A message/WebSocket engine. No agent-presence claim is added. Usage counts/estimates are recorded server-side; unknown usage/cost is displayed as Unknown. Conservative budget charges can include uncertain failed/retried calls. USD estimates are not invoices; unknown models/providers have no invented price.
+
+Apply additive `202611150007_ai_support` only to development via `pnpm db:generate` / `pnpm db:migrate`; no reset. No pgvector is required. See [M2-B models, APIs and execution safety](docs/M2-B-DESIGN.md).
+
+Validation commands after building:
+
+- `pnpm test:ai`: explicitly Mock AI provider/transport evaluations with real PostgreSQL/Redis.
+- `pnpm test:e2e`: all ordinary browser regressions, AI admin and real no-key human fallback.
+- `pnpm test:e2e:ai-mock`: separate clearly named Mock provider browser evaluation; not a live OpenAI test.
+- `pnpm test:ai:live`: actual OpenAI check with synthetic facts; missing server key reports BLOCKED/exit2 and writes ignored test-results/ai-live-result.json. Do not label Mock results as live acceptance.
+
+No M2-C, external messaging connector, attachment or financial/ordering Agent tool is implemented. Production deployment and live model approval remain separate from local Mock/development acceptance.

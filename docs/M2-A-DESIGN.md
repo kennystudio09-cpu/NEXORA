@@ -64,3 +64,7 @@ Merchant `/inbox`: tenant switching, name/ID search, status filter, pagination, 
 Customer store widget: login required, display name to create/resume, actual persisted history, real-time human replies, receipt/send state, close/reopen and reconnect reconciliation. The existing AI placeholder remains explicit that AI is unavailable. No fake online/typing/response-time claims. Unacknowledged send retries retain an opaque scoped key; after acknowledgement, an intentional identical new message uses a fresh key. No message text is stored in browser storage.
 
 Attachments remain closed: no upload route, file picker or arbitrary attachment URL field. A later reviewed implementation must enforce tenant/conversation authorization before parsing, byte/type/content limits, malware/content inspection, private object storage, scoped short-lived download authorization, metadata/filename sanitization and retention. Existing public catalog-image endpoints must never be used for private chat attachments. M2-B AI, external WhatsApp/email channels, bots, attachments, anonymous chat and production deployment are outside M2-A.
+
+## M2-B extension
+
+The subsequent approved AI checkpoint adds optional grounded AI, nullable bot participants and human takeover while retaining the M2-A authorization and transport. See [M2-B design](M2-B-DESIGN.md). Human-only exclusions above describe the original M2-A checkpoint. Live AI acceptance must be reported independently from Mock evaluation.
