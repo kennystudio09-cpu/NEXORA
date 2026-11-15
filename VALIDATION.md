@@ -1,3 +1,46 @@
+# M1-D Customer Portal acceptance — 2026-11-15
+
+Status: **PASS — M1-D development acceptance.** Git synchronization is the final delivery step. This section supersedes the older checkpoint summaries below; their original evidence is preserved as history.
+
+## Delivered scope
+
+- Published merchant storefront `/s/[merchantSlug]` with actual public profile, sanitized logo, merchant-provided business hours/address/contact channels, live catalog/category/search/filter/detail APIs and English/Chinese/Malay responsive views. Only ACTIVE items in a published store are visible. Product/service checkout is real; digital and bundle entries remain preview-only.
+- Per-store carts use an immutable public storefront key, separate from tenant IDs/slugs. Quantity updates/removal and persistence store only IDs, quantities and display labels. Backend quote and checkout derive catalog prices and use the existing exact Decimal order engine. Browser price/tenant/customer/contact/status/payment injection is rejected.
+- Dedicated customer login/register pages reuse M0 opaque HttpOnly sessions and CSRF/rate controls. Account ownership is distinct from employee membership. Transactional tenant/account/contact mapping never adopts an existing CRM record by matching email/phone. Tenant-composite foreign keys prevent cross-tenant links.
+- Authenticated checkout atomically creates PENDING / CUSTOMER / customer_portal / UNPAID orders, snapshots, initial history, audit and original safe idempotency response through the M1-C engine. Concurrent identical retries create one order; operation-scoped checks stop merchant/customer response replay. Failed attempts create no partial CRM mapping or order.
+- Customer order list/detail require current account ownership. Responses omit private merchant notes, SKU, tenant/contact/account IDs and actor/audit data. Guest, another customer and a merchant account cannot read that customer's receipt. Merchant order management retains member RBAC, tenant isolation and versioned status transitions; customer refresh shows the committed status.
+- Merchant `/catalog/profile` supports public-profile editing and validated logo upload/removal. Logo uses the existing full content-validation and metadata-stripped WebP re-encoding pipeline; Owner/Manager guards run before multipart processing. Contact links only use supplied merchant information. AI support slot explicitly says unavailable; no false online status or M2 features.
+
+## Verification
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Frozen installation / Prisma generation | PASS | Pinned lockfile retained; Prisma Client generated for the additive storefront models. No external dependencies added. |
+| Development migration | PASS | `pnpm db:migrate` applied `202611150005_storefront` against local Compose PostgreSQL. Five migrations, all current. PostgreSQL/Redis healthy. No reset, table cleanup, volume removal, or production mutation. |
+| pnpm lint | PASS | Final all-workspace run: 14 tasks successful, zero errors/warnings. |
+| pnpm typecheck | PASS | Final app/package/API test/browser types passed (14 tasks plus root browser/configuration types). |
+| test | PASS | API 67 passes including 5 parent tests; Worker 1 pass. Includes all previous 55 API tests and new 2 unit + 9 integration scenarios + parent. Zero failure/skip/cancellation. |
+| pnpm build | PASS | All 10 normal workspace builds passed. Isolated E2E production builds passed with the final checkout fixes. |
+| pnpm test:e2e | PASS | Final Chromium run: 16 tests in 80.5 seconds, zero unexpected failures/skips/flaky results. M0 4 + CRM 3 + Catalog 2 + Orders 3 + storefront 4. Includes persistent cart clear, deliberate identical new purchase and original-key replay. |
+| Monetary integrity | PASS | Exact 0.1000×3 + 0.2000×2 = 0.7000 and selected variant 0.3333×3 = 0.9999; changed quote rejected; customer totals/price injection rejected. Prior large precision/round-trip tests retained. |
+| Isolation / identity | PASS | Customer A/B and guest private-read denial; merchant A/B order denial; no matching-email CRM takeover; distinct per-tenant account/contact mapping and invalid composite reference rejection. Cart envelopes reject another store key. |
+| Availability / idempotency | PASS | Foreign/draft/archived/digital/bundle items denied checkout. Four concurrent same-key checkouts produce one order/history. Different-key concurrent first checkouts share one CRM mapping. Original receipt can be replayed after state changes/unpublishing; new checkout is refused. |
+| Upload security | PASS | Staff rejected before parsing, invalid image contents rejected, >2 MiB rejected, valid PNG re-encoded to WebP; public image has sandbox CSP/nosniff and deletion removes public access. |
+| UI review | PASS | 390×844 shop and Malay confirmed/unpaid receipt screenshots visually inspected, without horizontal overflow. Three languages checked in real browser. |
+| Secret/artifact audit | PASS | Real local credential values absent from tracked/new source. .env, key files, dependency/cache/build/DB/browser artifacts excluded; localhost Redis URL in .env.example is intentionally a noncredential development address. |
+
+## Diagnosed checks and limits
+
+The initial added integration fixture shadowed its own slug variable, causing a TypeScript error and parent-test failure. Renamed the fixture binding and reran the full suite successfully; no assertion or authorization control was removed. The added profile browser test then exposed unreliable label association on textareas with existing content; explicit translated aria-labels fixed this, and all 16 browser tests passed. Final code review also corrected checkout cart persistence: clear localStorage synchronously before navigation, and remove the client attempt key only after acknowledged success so an intentional identical repeat purchase is possible. The final browser flow verifies an empty cart after reload plus a new order ID for that deliberate repeat; captured original-key replay still returns the first order. A direct Prisma status invocation without loading root .env reported DATABASE_URL missing; rerunning with `node --env-file=.env` confirms all five migrations current. Local rate-counter isolation remains test-only and does not change production authentication limits or clear Redis keys.
+
+Payment remains UNPAID only: no collection, gateway, refund, shipping, inventory reservation, appointments, digital delivery, bundle fulfillment or AI/live chat. Tax/discount remain zero from M1-C. Customer accounts use existing passwords/sessions; email verification/OTP/recovery are not claimed. Browser storage is required for persistent cart/checkout retry keys; no session token, password, name or note is stored there. These are development acceptance results, not production deployment approval.
+
+Artifacts (ignored): `test-results/e2e-results.json`, `test-results/storefront-mobile-shop.png`, `test-results/storefront-mobile-receipt.png`. API/model contracts: `docs/M1-DESIGN.md`. No M2 implementation started.
+
+Git baseline: feature/m1-core-business at 331ad33932be45947919e84b9315636d0c8dea8d. Develop baseline: 9ebf44e3352fc412bbf682888d3d32849f2e070f. Final commit/push and remote SHA are reported in the delivery after successful checks; no force push or merge to develop.
+
+---
+
 # NEXORA M1-C Orders — Latest acceptance
 
 Date: 2026-11-15 (Asia/Kuala_Lumpur). **M1-C: PASS for local development acceptance. M0/M1-A/M1-B regression: PASS.** No M1-D implementation, payment integration or production deployment was performed. Previous records are preserved below.

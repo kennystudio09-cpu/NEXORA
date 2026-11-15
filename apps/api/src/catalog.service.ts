@@ -34,7 +34,7 @@ export class CatalogService {
   async removeVariant(tenantId:string,itemId:string,id:string){await this.variant(tenantId,itemId,id);await this.data.db.catalogVariant.delete({where:{tenantId_id:{tenantId,id}}});return {ok:true};}
   async store(tenantId:string){return this.data.db.tenant.findUniqueOrThrow({where:{id:tenantId},select:{catalogSlug:true,catalogPublic:true}});}
   updateStore(tenantId:string,input:unknown){return this.data.db.tenant.update({where:{id:tenantId},data:storeInput(input),select:{catalogSlug:true,catalogPublic:true}});}
-  async publicStore(slug:string){const row=await this.data.db.tenant.findFirst({where:{catalogSlug:slug,catalogPublic:true},select:{id:true,name:true,catalogSlug:true}});if(!row)throw new NotFoundException("Store not found");return row;}
+  async publicStore(slug:string){const row=await this.data.db.tenant.findFirst({where:{catalogSlug:slug,catalogPublic:true},select:{id:true,name:true,catalogSlug:true,storefrontKey:true}});if(!row)throw new NotFoundException("Store not found");return row;}
   async publicItem(slug:string,id:string){const store=await this.publicStore(slug);const row=await this.item(store.id,id);if(row.status!=="ACTIVE")throw new NotFoundException("Item not found");return this.publicDto(row);}
   async addMedia(tenantId:string,itemId:string,file:Express.Multer.File|undefined,input:unknown){
     await this.item(tenantId,itemId);const b=body(input,["altText"]);const altText=b.altText===undefined?"":text(b.altText,160,true);const content=await sanitizeImage(file);

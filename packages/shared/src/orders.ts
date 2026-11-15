@@ -5,7 +5,7 @@ export const ORDER_SOURCES=["MERCHANT","CUSTOMER","AI","APPOINTMENT"] as const;
 export interface OrderLineInput {catalogItemId:string;catalogVariantId?:string|null;quantity:number}
 export interface OrderLineView {id?:string;catalogItemId:string;catalogVariantId:string|null;position:number;itemNameSnapshot:string;variantNameSnapshot:string|null;skuSnapshot:string|null;unitPriceSnapshot:string;quantity:number;lineTotal:string}
 export interface OrderQuote {currencyCode:string;subtotal:string;discountTotal:string;taxTotal:string;grandTotal:string;contactNameSnapshot:string|null;items:OrderLineView[];quoteHash:string}
-export interface OrderView extends Omit<OrderQuote,"quoteHash"> {id:string;tenantId:string;orderNumber:string;contactId:string|null;source:string;status:OrderStatusValue;version:number;notes:string;createdAt:string;updatedAt:string}
+export interface OrderView extends Omit<OrderQuote,"quoteHash"> {id:string;tenantId:string;orderNumber:string;contactId:string|null;source:string;sourceChannel:string;paymentStatus:"UNPAID";customerNote:string;status:OrderStatusValue;version:number;notes:string;createdAt:string;updatedAt:string}
 export interface OrderHistoryView {id:string;fromStatus:OrderStatusValue|null;toStatus:OrderStatusValue;version:number;reason:string;createdAt:string;actor:{id:string;email:string}}
 export interface OrderEventView {id:string;type:string;version:number;createdAt:string;actor:{id:string;email:string};payload:unknown}
 const labels:Record<string,readonly[string,string,string]>={

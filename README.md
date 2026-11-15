@@ -1,6 +1,6 @@
 # NEXORA
 
-AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. M1-C adds a transactional merchant order engine. Customer checkout, payments and AI providers remain later modules.
+AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; M1-B adds unified product/service catalogs and public browsing. M1-C adds a transactional merchant order engine. M1-D adds a real Customer Portal storefront, per-store cart, authenticated unpaid checkout and private customer receipts. Payments and AI support remain unavailable.
 
 ## Workspace
 
@@ -12,7 +12,7 @@ AI Business Operating System, Malaysia first. M0 includes account sessions, merc
 | NestJS API | apps/api | 4000 |
 | BullMQ Worker | apps/worker | Redis queue nexora |
 
-Shared packages: database (Prisma), auth (scrypt/session cryptography), ui (portal components), shared (CRM contracts) and ai-core (reserved for later implementation).
+Shared packages: database (Prisma), auth (scrypt/session cryptography), ui (portal components), shared (CRM/catalog/order/storefront contracts and translations) and ai-core (reserved for later implementation).
 
 ## Development
 
@@ -68,7 +68,7 @@ Owners and Managers may create/edit profiles, tags and notes. All merchant roles
 
 Apply the additive `202611150002_crm` migration only to the intended development database via `pnpm db:migrate`. Never reset data or use production for automated tests. Tests create synthetic contacts and retain them without truncating existing tables.
 
-See [M1 schema and API design](docs/M1-DESIGN.md) for endpoint contracts, limits, the role matrix, identity boundaries and the proposed B/C/D direction. The design records the current catalog implementation and remaining order/storefront direction.
+See [M1 schema and API design](docs/M1-DESIGN.md) for implemented A/B/C/D endpoint contracts, limits, the role matrix and identity boundaries.
 
 ## M1-B Products & services
 
@@ -78,7 +78,7 @@ Enable a unique store slug in `/catalog/settings` to make ACTIVE items publicly 
 
 Uploads accept decoded PNG/JPEG/WebP up to 2 MiB, re-encode stripped WebP, and enforce pixel/output-size limits plus a transactional ten-image cap. Images are stored as tenant-scoped database bytes for this foundation. No upload directory or file path is exposed.
 
-Apply additive migration `202611150003_catalog` only to the intended development database. PriceList overrides, digital delivery, bundle composition, cart/payment are not implemented. See docs/M1-DESIGN.md for the full fields, API contracts and tested boundaries.
+Apply additive migration `202611150003_catalog` only to the intended development database. PriceList overrides, digital delivery and bundle composition are not implemented. Customer cart/checkout arrived in M1-D; payment remains unavailable. See docs/M1-DESIGN.md for the full fields, API contracts and tested boundaries.
 
 ## M1-C Merchant orders
 
@@ -90,6 +90,18 @@ Orders snapshot item/variant names, SKU and unit prices. Note/contact-only draft
 
 Draft → Pending/Confirmed/Cancelled; Pending → Confirmed/Cancelled; Confirmed → Processing/Cancelled; Processing → Completed/Cancelled. Completed/Cancelled are terminal. Only Draft permits profile/line edits; explicit state actions are checked by the API.
 
-`GET /api/customer/orders` and `GET /api/customer/orders/:id` form an ownership-filtered read foundation: source CUSTOMER and customerUserId must match the signed-in account. Matching CRM email/contactId or knowing an order ID never grants access. Merchant orders do not automatically attach customer accounts. Customer order creation is documented for future M1-D only and is not exposed; no customer purchase pages, cart, payment or M1-D implementation was added.
+`GET /api/customer/orders` and `GET /api/customer/orders/:id` form an ownership-filtered read foundation: source CUSTOMER and customerUserId must match the signed-in account. Matching CRM email/contactId or knowing an order ID never grants access. Merchant orders do not automatically attach customer accounts. M1-D now adds the authenticated storefront creation route and purchase pages described below; payment remains unavailable.
 
 Apply additive migration `202611150004_orders` only to the local development DB. It retains existing catalog/CRM data and adds order models, composite references, uniqueness and monetary checks. See docs/M1-DESIGN.md for transaction, concurrency and customer API contracts.
+
+## M1-D Customer Portal
+
+Publish a store slug under Merchant → Catalog → Store & prices. Set merchant-provided introduction, address, business hours and contact channels under **Public store profile** (`/catalog/profile`); upload a validated PNG/JPEG/WebP logo up to 2 MiB. Owner/Manager may edit; Staff reads. Visit Customer Portal `/s/<slug>` to browse actual ACTIVE products/services, filter categories/search, view details and build a store-specific cart. `/stores/<slug>` remains the legacy read-only preview.
+
+Carts are separated by immutable public storefront keys and persist only item/variant IDs, quantities and display labels in localStorage. Amounts are calculated by the backend; changing a local price has no authority. Digital and bundle items are preview-only. A cart must have one currency and at most 100 distinct lines, with integer quantities 1–10,000. No stock reservation, appointment slot, shipping, discounts or tax calculation is added; discount and tax remain zero as in M1-C.
+
+Customer `/account/register` and `/account/login` use the existing opaque HttpOnly session, password hashing, rate limits and origin/header protections. Customer purchase ownership comes from the current account, never merchant membership or a CRM email/phone match. A new tenant-scoped account/contact link is created transactionally on first checkout; matching existing contact details are not adopted. Guest order creation and private order reading are denied. Email verification/OTP recovery are not claimed.
+
+`/s/<slug>/cart` and `/checkout` use a real server quote, then create a PENDING order with source CUSTOMER, channel `customer_portal` and payment UNPAID through the M1-C engine. Every receipt explicitly says no payment has been taken. Identical checkout retries reuse a sessionStorage idempotency key scoped to store/account/payload; allow browser storage for durable retry behavior. After a successful response the attempt is cleared, so an intentional repeat purchase gets a fresh key. Changed quote terms require review. `/account/orders` and `/account/orders/<id>` expose only that account's safe receipt; use Refresh status to see merchant changes. Merchant `/orders` includes these orders and retains all existing RBAC/state/history/audit rules.
+
+Contact links appear only when supplied by the merchant. The AI widget location explicitly says live chat/AI support are unavailable. No M2, real payment, fulfillment or fake online status is implemented. API/data model details: [M1 design](docs/M1-DESIGN.md).

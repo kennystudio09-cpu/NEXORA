@@ -17,3 +17,5 @@ export interface PageResult<T> { items: T[]; total: number; page: number; pageSi
 export * from "./catalog";
 
 export * from "./orders";
+
+export * from "./storefront";

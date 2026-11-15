@@ -1,6 +1,6 @@
 # M1 business design
 
-Base: develop at 9ebf44e3352fc412bbf682888d3d32849f2e070f. Implementation branch: feature/m1-core-business. M1-A is complete. The M1-B checkpoint adds catalog management and public catalog preview. M1-C implements the transactional merchant order engine and customer ownership-filtered read foundation. M1-D remains design direction, not implemented.
+Base: develop at 9ebf44e3352fc412bbf682888d3d32849f2e070f. Implementation branch: feature/m1-core-business. M1-A is complete. The M1-B checkpoint adds catalog management and public catalog preview. M1-C implements the transactional merchant order engine and customer ownership-filtered read foundation. M1-D implements customer storefronts and authenticated unpaid checkout (see the final section).
 
 ## Identity and tenant boundary
 
@@ -157,8 +157,44 @@ Initial POST succeeds with 201, including idempotent replay; changed-payload key
 
 Merchant UI: `/orders`, `/orders/new`, `/orders/:id`, `/orders/:id/edit`. Real catalog/variant and CRM selectors include server searches beyond initial option pages; all summaries use server quote/snapshot strings. New orders reuse the same client idempotency key for identical retry payloads and disable in-flight submit controls. Draft note-only changes preserve prices; user-requested recalculation/replacement refreshes terms. Existing selections missing from current option pages are explicitly labeled saved snapshots. State/history/audit and mobile layout use English/Chinese/Malay labels. No mock business data is embedded.
 
-## Customer ownership foundation and future M1-D contract
+## M1-C customer ownership foundation (historical checkpoint)
 
 Implemented `GET /api/customer/orders` (page/pageSize/status) and `GET /api/customer/orders/:id` require a current session and filter source CUSTOMER plus customerUserId equal to session.userId. A bare ID, matching CRM email/contact or merchant ownership does not grant this customer read path. No cross-account override/filter is accepted. Customer DTO exposes order number, status, currency/totals/timestamps and item name/variant/unit-price/quantity/line-total snapshots; it omits merchant notes, SKU, tenant/contact/account identifiers and actor/audit data. Private merchant history remains membership-only. Positive read authorization is tested with explicitly seeded local database fixtures, not a claim of a live checkout flow.
 
 Designed but not exposed: `POST /api/customer/stores/:slug/orders` in M1-D. It must require authenticated customer identity, a published slug, ACTIVE public catalog/variants, server-derived tenant/prices and the same transactional/idempotency engine. Set source CUSTOMER and customerUserId from the session, initial status PENDING; never accept employee roles, arbitrary contactId, customerUserId, source or final amounts. CRM linking needs a reviewed explicit ownership mapping, not email guessing. Query remains the implemented ownership-filtered path. Payment/checkout pages, cart and customer creation endpoint are not implemented in M1-C.
+
+## M1-D schema and identity
+
+Additive migration `202611150005_storefront` retains all prior tables/data and migrations. Tenant gains a unique random public storefrontKey, independent of internal tenant ID and mutable slug. StorefrontProfile uses tenant_id as PK/FK and stores only explicit merchant-provided displayName (160), description (2000), address (500), businessHours (1000), public phone (40), email (254), sanitized WebP logo bytes/dimensions and updatedAt. The API public DTO is allowlisted; no employee or internal settings are exposed.
+
+CustomerAccountLink has composite PK (tenant_id,user_id), unique (tenant_id,contact_id), restrictive User/Tenant FKs and a composite tenant/contact FK. First successful checkout creates a fresh ACTIVE CRM Customer from authenticated account email and supplied displayName, then this mapping in the same transaction as the order. Existing matching email/phone does not grant identity or get silently merged. A per-tenant/account advisory transaction lock serializes first-contact linking. Later orders reuse the mapping without overwriting CRM edits. Each order retains the supplied customer display-name snapshot.
+
+Order gains customerNote (1000), sourceChannel, storeNameSnapshot, storeSlugSnapshot and PaymentStatus enum limited to UNPAID. Existing source CUSTOMER and customerUserId identify ownership; channel is `customer_portal`. Merchant source enum and transitions remain unchanged. Order snapshots retain all private SKU/prices internally, while customer receipts omit SKU, tenant/contact/user IDs, actor/audit and merchant notes. IdempotencyKey gains operation (default MERCHANT_ORDER_CREATE for old records); mismatched merchant/customer operations conflict rather than replaying a differently scoped DTO.
+
+## M1-D API (all paths prefixed /api)
+
+| Method | Path | Authentication and contract |
+| --- | --- | --- |
+| GET | /tenants/:tenantId/storefront | Current tenant membership; safe profile metadata, excluding image bytes. |
+| PATCH | /tenants/:tenantId/storefront | Owner/Manager; allowlisted displayName, description, address, businessHours, phone, email. Plain text only; email/phone validation. |
+| POST | /tenants/:tenantId/storefront/logo | Owner/Manager guard executes before upload parsing. One file; max 2 MiB PNG/JPEG/WebP, full Sharp decode, MIME/content match, pixel/animation limits and metadata-stripped WebP re-encoding. |
+| DELETE | /tenants/:tenantId/storefront/logo | Owner/Manager; clear only this tenant's logo. |
+| GET | /public/stores/:slug/profile | Published store only. name, slug, storefrontKey, description/address/hours/phone/email and logo presence/dimensions. |
+| GET | /public/stores/:slug/categories | Categories with at least one ACTIVE nondeleted item from this published store; id/name only. |
+| GET | /public/stores/:slug/logo | Published store's sanitized image only; nosniff, no-store, CSP sandbox. |
+| POST | /public/stores/:slug/quote | Read-only quote; items with catalogItemId, optional catalogVariantId, integer quantity. Published PRODUCT/SERVICE only; no supplied price or tenant. Safe public snapshots, four-place amount strings and quoteHash; no SKU/contact fingerprint oracle. |
+| POST | /customer/stores/:slug/orders | Current account + Idempotency-Key. Accept items, required displayName, optional customerNote and quoteHash only. Derive tenant, user, source, PENDING/UNPAID, CRM contact and all prices on server. Return safe customer receipt. |
+| GET | /customer/orders | Current account only, existing page/pageSize/status query; never allow customer/tenant/contact overrides. |
+| GET | /customer/orders/:id | Current account + source CUSTOMER + customerUserId match; 404 for another account, 401 anonymous. |
+
+Existing public `/items`, `/items/:id`, `/media/:id` retain strict ACTIVE/published/tenant filtering. Unknown JSON fields, private authority/price fields and malformed quantities are 400; stale quote or changed idempotency payload 409. Missing/unpublished stores are 404; no customer order endpoint is authorized by a bare order ID or phone number.
+
+Checkout holds a shared store-row lock, then tenant/actor/key advisory lock, checks prior operation/hash, locks and resolves current active catalog/variants and Decimal totals, checks public quote, links CRM under account lock, and atomically persists order/lines/history/audit/original safe response. Unpublish/catalog edits serialize against checkout locks: a committed checkout uses a valid current view, or new checkout fails after delisting. A previous identical receipt can be replayed after unpublishing without creating an order or requiring active items. Merchant state transitions remain row-locked/versioned; customer cannot mutate state.
+
+## M1-D pages and scope
+
+Customer `/s/[merchantSlug]`, `/items/[itemId]`, `/cart`, `/checkout`; account `/account/login`, `/account/register`, `/account/orders`, `/account/orders/[orderId]`. English/Chinese/Malay labels and phone-first layouts. Immutable-key localStorage cart envelopes reject a different store key, duplicates and invalid quantities, and strip any untrusted price fields. Server recalculates the final amount even if browser storage is tampered. Safe login return paths are limited to local /s/ and /account/orders routes. Checkout attempt keys persist in sessionStorage for identical store/account/validated payload retries; no session token or customer note is persisted there. After acknowledged success, the cart storage is cleared synchronously before navigation and that completed attempt key is removed, allowing an intentional identical new purchase. Unknown-result retries keep the same key; the server retains the original receipt permanently.
+
+Merchant `/catalog/profile` edits public fields/logo; existing `/catalog/settings` controls slug/publication. Existing `/orders` lists customer orders; detail shows channel, customer note, unpaid message and existing state controls. Customer status refresh reads a safe receipt; no staff history or private merchant notes are exposed.
+
+Digital/bundle checkout, inventory reservation, appointment scheduling, shipping/tax/discount engine, payment collection, AI and live chat remain outside this checkpoint. Merchant contact links use provided tel/mailto only; the future AI widget slot explicitly states it is unavailable.

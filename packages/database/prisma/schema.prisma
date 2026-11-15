@@ -24,6 +24,7 @@ model User {
   orderHistory OrderStatusHistory[]
   orderEvents OrderEvent[]
   idempotencyKeys IdempotencyKey[]
+  customerAccountLinks CustomerAccountLink[]
 }
 model Tenant {
   id String @id @default(uuid())
@@ -38,6 +39,9 @@ model Tenant {
   catalogCategories CatalogCategory[]
   priceLists PriceList[]
   orders Order[]
+  storefrontKey String @unique @default(dbgenerated("(gen_random_uuid())::text")) @map("storefront_key")
+  storefrontProfile StorefrontProfile?
+  customerAccountLinks CustomerAccountLink[]
 }
 model Membership {
   userId String
@@ -80,6 +84,7 @@ model Customer {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   followUps CustomerFollowUp[]
   orders Order[]
+  accountLink CustomerAccountLink?
   @@unique([tenantId, id])
   @@index([tenantId, createdAt, id])
   @@index([tenantId, status])
@@ -217,6 +222,11 @@ model Order {
   taxTotal Decimal @default(0) @db.Decimal(24,4)
   grandTotal Decimal @db.Decimal(24,4)
   notes String @default("") @db.VarChar(4000)
+  customerNote String @default("") @db.VarChar(1000)
+  sourceChannel String? @db.VarChar(32)
+  paymentStatus PaymentStatus @default(UNPAID)
+  storeNameSnapshot String? @db.VarChar(160)
+  storeSlugSnapshot String? @db.VarChar(60)
   version Int @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -284,6 +294,7 @@ model IdempotencyKey {
   tenantId String @map("tenant_id")
   actorId String
   key String @db.VarChar(128)
+  operation String @default("MERCHANT_ORDER_CREATE") @db.VarChar(40)
   requestHash String @db.VarChar(64)
   orderId String @map("order_id")
   response Json
@@ -292,4 +303,34 @@ model IdempotencyKey {
   actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
   @@unique([tenantId, actorId, key])
   @@index([tenantId, orderId])
+}
+
+enum PaymentStatus {
+  UNPAID
+}
+model StorefrontProfile {
+  tenantId String @id @map("tenant_id")
+  displayName String @default("") @db.VarChar(160)
+  description String @default("") @db.VarChar(2000)
+  address String @default("") @db.VarChar(500)
+  businessHours String @default("") @db.VarChar(1000)
+  phone String @default("") @db.VarChar(40)
+  email String @default("") @db.VarChar(254)
+  logoData Bytes?
+  logoMime String?
+  logoWidth Int?
+  logoHeight Int?
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+}
+model CustomerAccountLink {
+  tenantId String @map("tenant_id")
+  userId String @map("user_id")
+  contactId String @map("contact_id")
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  contact Customer @relation(fields: [tenantId, contactId], references: [tenantId, id], onDelete: Restrict)
+  @@id([tenantId, userId])
+  @@unique([tenantId, contactId])
 }
