@@ -16,3 +16,4 @@ test-results/
 *.sqlite*
 pgdata/
 redisdata/
+.next-e2e/

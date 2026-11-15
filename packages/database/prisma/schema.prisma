@@ -18,6 +18,7 @@ model User {
   createdAt DateTime @default(now())
   memberships Membership[]
   sessions Session[]
+  customerFollowUps CustomerFollowUp[]
 }
 model Tenant {
   id String @id @default(uuid())
@@ -25,6 +26,7 @@ model Tenant {
   createdAt DateTime @default(now())
   memberships Membership[]
   sessions Session[]
+  customers Customer[]
 }
 model Membership {
   userId String
@@ -45,4 +47,42 @@ model Session {
   activeTenant Tenant? @relation(fields: [activeTenantId], references: [id], onDelete: SetNull)
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum CustomerStatus {
+  LEAD
+  ACTIVE
+  INACTIVE
+}
+
+model Customer {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  name String @db.VarChar(120)
+  email String? @db.VarChar(254)
+  phone String? @db.VarChar(40)
+  status CustomerStatus @default(LEAD)
+  tags String[] @default([])
+  notes String @default("") @db.VarChar(4000)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  followUps CustomerFollowUp[]
+  @@unique([tenantId, id])
+  @@index([tenantId, createdAt, id])
+  @@index([tenantId, status])
+  @@index([tags], type: Gin)
+}
+
+model CustomerFollowUp {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  customerId String @map("customer_id")
+  authorId String @map("author_id")
+  content String @db.VarChar(2000)
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  @@index([tenantId, customerId, createdAt, id])
 }

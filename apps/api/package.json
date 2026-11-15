@@ -19,7 +19,8 @@
     "@nexora/database": "workspace:*",
     "@nexora/auth": "workspace:*",
     "ioredis": "5.9.2",
-    "dotenv": "17.2.3"
+    "dotenv": "17.2.3",
+    "@nexora/shared": "workspace:*"
   },
   "devDependencies": {
     "tsx": "4.21.0",

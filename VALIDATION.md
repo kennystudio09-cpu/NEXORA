@@ -1,3 +1,57 @@
+# NEXORA M1-A CRM — Latest acceptance
+
+Date: 2026-11-15 (Asia/Kuala_Lumpur). **M1-A: PASS in the local development environment. M0 regression: PASS.** M1-B/C/D remain unimplemented at this checkpoint. Prior M0 validation and source-recovery history are preserved below.
+
+## Scope and architecture
+
+Branched `feature/m1-core-business` from freshly fetched `develop` at `9ebf44e3352fc412bbf682888d3d32849f2e070f`; the working tree was clean. The user's M1 authorization superseded AGENTS.md's previous M0-only restriction, and the instruction file now reflects the authorized sequence.
+
+Design and API contracts: `docs/M1-DESIGN.md`. Added independent Customer and CustomerFollowUp records with physical tenant_id columns, tenant indexes and a composite tenant/customer foreign key. CRM contact email never grants User login or employee membership. M0 Data/session/member logic was extracted unchanged to a shared provider file; existing security mechanisms remain in effect.
+
+Merchant routes: `/crm`, `/crm/new`, `/crm/:customerId`, `/crm/:customerId/edit`. Features: real database-backed list/search/pagination, status/tag filters, create/edit/detail, normalized tags and notes, append-only follow-up history, tenant switching, and mobile layout. No mock business records are substituted for implementation.
+
+Permissions: all merchant roles can view and append follow-ups; Owner/Manager can create/edit contact profiles, tags and notes; Staff cannot. Each API endpoint checks session and membership before accessing scoped records. Cross-tenant object IDs return 404 to a member of the wrong tenant, and nonmembers receive 403. Unknown fields and forged tenant/author/time inputs are rejected. Contact deletion and history editing are not exposed.
+
+## Database safety
+
+Confirmed the runtime had no injected DATABASE_URL or production NODE_ENV; the repository's ignored local configuration points to localhost/nexora and healthy local Compose PostgreSQL/Redis services. Migration `202611150002_crm` adds only the CRM enum, tables, indexes and foreign keys. It was reviewed for absence of drops/truncation/deletes, applied successfully, and repeated deploy reported no pending migrations. Existing M0 migration files and data were retained. No production database was accessed or reset.
+
+## Validation results
+
+| Check | Outcome | Evidence |
+| --- | --- | --- |
+| `pnpm install --frozen-lockfile` | PASS | Workspace links updated for shared CRM contracts; frozen installation succeeded. |
+| `pnpm db:generate` | PASS | Prisma Client 6.19.2 generated from extended schema. |
+| `pnpm db:migrate` | PASS | Additive CRM migration applied to local PostgreSQL; repeat deploy has no pending work. |
+| `pnpm lint` | PASS | ESLint across all applications/packages, zero errors or warnings on final run. |
+| `pnpm typecheck` | PASS | All apps/packages, API test code, and browser test/configuration code. |
+| `pnpm test` | PASS | API runner: 25 passes, including 2 parent tests, 4 CRM validation unit tests, 8 CRM integration scenarios and 11 M0 scenarios; Worker: 1 real Redis queue test. Zero failures/skips/cancellations. |
+| `pnpm build` | PASS | Ten workspace builds, all three portals, compiled API and Worker. Both normal and isolated E2E Next builds succeeded. |
+| `pnpm test:e2e` | PASS | 7 Chromium tests: 3 CRM and 4 M0 regressions. Zero failures, skips or flaky outcomes in final results. |
+| Tenant isolation | PASS | Tenant-scoped list totals, wrong-tenant detail/update/history, nonmember access, forged tenantId/authorId and immediate membership revocation tested. |
+| Database relationship boundary | PASS | Direct invalid cross-tenant follow-up insertion rejected by PostgreSQL composite foreign key (Prisma P2003); no record inserted. |
+| Identity and session boundary | PASS | Matching CRM contact/account email does not create membership; missing auth, revoked membership and replay of logged-out sessions denied. |
+| Owner/Manager/Staff | PASS | Manager create/edit, Staff view/follow-up, Staff profile write rejection and UI protection validated. |
+| UI workflow | PASS | Mobile create/view/edit with nonempty notes, tags, history, search/status/tag filters, no-result state and pagination across 11 real synthetic records. Tenant switching hides previous records. |
+| Mobile layout | PASS | 390×844 viewport has no horizontal overflow; CRM detail screenshot visually inspected. |
+
+Latest E2E JSON: `test-results/e2e-results.json`. Mobile screenshot: `test-results/crm-mobile-detail.png`. Both are ignored local artifacts; traces may include cookies and are never committed. Tests use uniquely identified synthetic data and isolated Worker queues; they do not truncate existing tables.
+
+## Diagnosed failures and corrections
+
+- Initial E2E startup encountered development ports already in use and executed no tests. E2E now uses dedicated 3100–3102/4100 ports, isolated .next-e2e directories, explicit allowed origins, and separately hashed build configuration. Existing development listeners do not satisfy test readiness. Generated normal-build Next declarations are restored afterward.
+- The first running suite passed six tests and failed the mobile edit scenario because a wrapping textarea label included initial text in exact-label lookup. Replaced notes/tags labels with explicit htmlFor/id associations. Rebuilt and reran the complete suite: seven tests passed. No assertion or security check was disabled.
+- An exploratory migration-diff command failed because it was given an empty shadow database URL. Generated the additive diff directly between the prior and current schema files instead, requiring no shadow or production database; only the inspected migration was applied.
+- Aborted list/form requests are prevented from committing stale UI state after navigation. Tenant switching hides children and reloads the CRM context.
+
+## Delivery boundary
+
+README and AGENTS.md updated; M1 design and this validation record included in the CRM commit. The final feature-branch SHA and remote push verification are reported in the task delivery. No force push, branch deletion, project recreation, secret commit, database reset or production deployment occurred. This checkpoint does not claim catalog, uploads, orders or public storefront completion; they remain M1-B/C/D. CRM does not introduce destructive delete/export endpoints or automated customer-account linking.
+
+---
+
+# Previous validation record (preserved)
+
 # NEXORA M0 — Latest acceptance
 
 Date: 2026-11-15 (Asia/Kuala_Lumpur). **M0: PASS for the requested local development acceptance scope.** This is an explicitly authorized new implementation, not recovery of the lost original source. Earlier blocked results and checkpoint notes are preserved below as history.

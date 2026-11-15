@@ -8,7 +8,13 @@
       "outputs": [
         "dist/**",
         ".next/**",
-        "!.next/cache/**"
+        "!.next/cache/**",
+        ".next-e2e/**",
+        "!.next-e2e/cache/**"
+      ],
+      "env": [
+        "NEXORA_E2E",
+        "API_INTERNAL_URL"
       ]
     },
     "dev": {

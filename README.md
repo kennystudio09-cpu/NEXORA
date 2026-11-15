@@ -1,6 +1,6 @@
 # NEXORA
 
-AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1 business features and AI providers are not implemented.
+AI Business Operating System, Malaysia first. M0 includes account sessions, merchant membership, tenant isolation, and role-controlled merchant workflows. Customer and Platform Admin have separate application entry points; M1-A adds tenant-scoped Customer CRM in the Merchant Portal; catalog, orders, storefront and AI providers remain later modules.
 
 ## Workspace
 
@@ -12,7 +12,7 @@ AI Business Operating System, Malaysia first. M0 includes account sessions, merc
 | NestJS API | apps/api | 4000 |
 | BullMQ Worker | apps/worker | Redis queue nexora |
 
-Shared packages: database (Prisma), auth (scrypt/session cryptography), ui (portal components), shared and ai-core (reserved for later implementation).
+Shared packages: database (Prisma), auth (scrypt/session cryptography), ui (portal components), shared (CRM contracts) and ai-core (reserved for later implementation).
 
 ## Development
 
@@ -43,7 +43,7 @@ The symlink is outside the repository and points only to the pinned package mana
 
 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, then `pnpm test:e2e`.
 
-Tests require the local Compose database and Redis. API tests create unique synthetic accounts/merchants and retain test data; they never clear existing data. Worker tests use a unique test queue. E2E starts the compiled API and all three production-built Next.js apps, then stops those test servers. Ports 3000–3002 and 4000 must be free. Chromium defaults to `/usr/bin/chromium`; set CHROMIUM_PATH for an installed compatible Chromium elsewhere. Test results and traces stay ignored under test-results; traces can contain session details and must not be committed.
+Tests require the local Compose database and Redis. API tests create unique synthetic accounts/merchants and retain test data; they never clear existing data. Worker tests use a unique test queue. E2E builds into isolated `.next-e2e` directories, starts the compiled API and all three production-built Next.js apps, then stops those test servers. Dedicated ports 3100–3102 and 4100 must be free; development ports 3000–3002/4000 can remain running. `scripts/e2e.mjs` restores the generated normal-build Next declarations afterward. Chromium defaults to `/usr/bin/chromium`; set CHROMIUM_PATH for an installed compatible Chromium elsewhere. Test results and traces stay ignored under test-results; traces can contain session details and must not be committed.
 
 `GET /api/health` verifies PostgreSQL and Redis. `GET /api/health/live` is process liveness only.
 
@@ -59,3 +59,13 @@ Tests require the local Compose database and Redis. API tests create unique synt
 For deployment configure HTTPS, COOKIE_SECURE=true, NODE_ENV=production, explicit ALLOWED_ORIGINS, DATABASE_URL and REDIS_URL. API_INTERNAL_URL selects the private API destination for portal proxying at build time. Local development shares a host cookie across the three ports; separate deployment hosts require a reviewed session/cookie-domain policy. Deployment, external identity, email verification, password recovery, MFA, audit trails and business/AI modules are outside this M0 acceptance.
 
 See VALIDATION.md for historical checkpoints and the latest verified results.
+
+## M1-A Customer CRM
+
+Open `/crm` in the Merchant Portal, select a merchant, and use `/crm/new`, `/crm/:customerId` and `/crm/:customerId/edit`. Lists support case-insensitive name/email/phone search, status/tag filters and bounded pagination. Tags normalize to lowercase; optional contact fields can be cleared. Notes and append-only follow-ups are persisted in PostgreSQL; displayed times use Malaysia time.
+
+Owners and Managers may create/edit profiles, tags and notes. All merchant roles may read CRM and add follow-ups. Staff cannot modify core customer profiles. No delete/export endpoint is introduced. CRM contacts are separate from User login identities: matching contact email never grants merchant access. The selected merchant controls navigation, while every API request independently checks membership and uses tenant-scoped database queries. Follow-up/customer relationships additionally use a composite tenant foreign key.
+
+Apply the additive `202611150002_crm` migration only to the intended development database via `pnpm db:migrate`. Never reset data or use production for automated tests. Tests create synthetic contacts and retain them without truncating existing tables.
+
+See [M1 schema and API design](docs/M1-DESIGN.md) for endpoint contracts, limits, the role matrix, identity boundaries and the proposed B/C/D direction. Those later modules are not implemented in the M1-A checkpoint.
