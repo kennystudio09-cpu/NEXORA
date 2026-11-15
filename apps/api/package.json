@@ -14,18 +14,20 @@
     "@nestjs/common": "11.1.9",
     "@nestjs/core": "11.1.9",
     "@nestjs/platform-express": "11.1.9",
+    "@nexora/auth": "workspace:*",
+    "@nexora/database": "workspace:*",
+    "@nexora/shared": "workspace:*",
+    "dotenv": "17.2.3",
+    "ioredis": "5.9.2",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "@nexora/database": "workspace:*",
-    "@nexora/auth": "workspace:*",
-    "ioredis": "5.9.2",
-    "dotenv": "17.2.3",
-    "@nexora/shared": "workspace:*",
-    "sharp": "0.34.5"
+    "sharp": "0.34.5",
+    "ws": "8.18.3"
   },
   "devDependencies": {
-    "tsx": "4.21.0",
     "@types/express": "5.0.5",
-    "@types/multer": "2.0.0"
+    "@types/multer": "2.0.0",
+    "@types/ws": "8.18.1",
+    "tsx": "4.21.0"
   }
 }

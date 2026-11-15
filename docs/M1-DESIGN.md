@@ -198,3 +198,7 @@ Customer `/s/[merchantSlug]`, `/items/[itemId]`, `/cart`, `/checkout`; account `
 Merchant `/catalog/profile` edits public fields/logo; existing `/catalog/settings` controls slug/publication. Existing `/orders` lists customer orders; detail shows channel, customer note, unpaid message and existing state controls. Customer status refresh reads a safe receipt; no staff history or private merchant notes are exposed.
 
 Digital/bundle checkout, inventory reservation, appointment scheduling, shipping/tax/discount engine, payment collection, AI and live chat remain outside this checkpoint. Merchant contact links use provided tel/mailto only; the future AI widget slot explicitly states it is unavailable.
+
+## Related M2-A checkpoint
+
+M2-A now implements approved human support using the existing account/contact mapping and tenant permissions; see [M2-A schema, APIs and transport](M2-A-DESIGN.md). M1 checkpoint exclusions above are historical scope statements. AI support remains disabled.

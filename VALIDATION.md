@@ -1,3 +1,55 @@
+# M2-A human support acceptance — 2026-11-15
+
+Status: **PASS — development environment acceptance.** Implementation branch: feature/m2-customer-support, created from verified/pushed M1-D 23dc30ff5b1355aca275e8b76258d8eb81377a80. Git commit/push and remote SHA verification follow these checks; the delivery reports the verified SHA. Prior M0/M1 validation history below is preserved unchanged.
+
+## Delivered
+
+- Seven persistent Prisma models: SupportChannel, Conversation, ConversationParticipant, Message, ConversationAssignment, ConversationEvent, MessageDelivery. Every business model has tenant_id; composite references prevent cross-tenant parents, senders, channels, assignments and delivery recipients. Conversation/contact references remain tenant-scoped. Additive migration 202611150006_support includes a partial unique current-assignment index and valid sequence/content checks.
+- Authenticated create/resume, scoped list/search/status pagination, durable ordered history, idempotent send, delivered/read acknowledgements, unread counts, assignment/transfer, close/reopen, authorized agents and safe audit summaries. Messages store derived sender type, WEB channel, SENT status, sentAt and sequence. Text only, maximum4000; no trusted client identity/tenant/role fields or attachment path.
+- Customer ownership is the authenticated account, not an email, phone, CRM ID or conversation ID alone. Existing M1-D tenant/account/contact mapping is reused (including a real checkout-created mapping); first support contact creation is atomic and never adopts a matching email. Owner/Manager manage all tenant conversations; Staff handle current assignments only. Transfer revokes prior Staff HTTP and subscription access.
+- Nest HTTP-server ws transport with single-use30-second opaque tickets, exact Origin checks, current session/member/conversation authorization, scoped subscriptions and revocation. Limits: 2KiB frames, 120 controls/min, ten subscriptions and five connections/session/node. No private message payload in notifications. PostgreSQL is authoritative; every notification reauthorizes access.
+- Real reconnect/cursor catch-up, duplicate suppression and ten-second HTTP reconciliation. Message acceptance/sequence/audit are committed in one row-locked transaction; CAS versions control assignment/status races. Unknown-result retries reuse the original message key, while an acknowledged intentional repeat uses a fresh key.
+- Optional implemented Redis Pub/Sub adapter (SUPPORT_REDIS_ADAPTER=true) sends metadata-only invalidations across instances with origin-loop suppression. Verified with two real API servers. A notification failure never rolls back committed data; clients recover from database history.
+- Merchant /inbox with tenant switching, search/filter/pagination, unread totals, real-time chat, authorized CRM sidebar/link, member assignment/transfer, close/reopen, send/delivery/read state and localized audit labels. Customer store widget starts/resumes owned human conversations, sends/receives actual messages and recovers history. English/Chinese/Malay and mobile views. Transport connectivity never claims an agent is online; AI and attachments explicitly unavailable.
+
+## Final verification
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| pnpm install --frozen-lockfile | PASS | ws8.18.3 / @types/ws8.18.1 pinned, shared UI workspace dependency recorded in lockfile; no verification bypass. |
+| pnpm db:generate | PASS | Prisma Client generated with seven support models and enums. |
+| pnpm db:migrate | PASS | Local Compose PostgreSQL only; six applied migrations, schema current. PostgreSQL/Redis healthy. No reset, truncation, volume deletion, destructive migration or production database mutation. Existing five migrations unchanged. |
+| pnpm lint | PASS | All14 tasks successful, zero lint errors/warnings. |
+| pnpm typecheck | PASS | All14 app/package tasks plus API fixtures and root Playwright types. |
+| pnpm test | PASS | API82 passes including6 parent tests; Worker1 pass. Existing67 API tests retained; new3 unit +10 acceptance scenarios +parent +cross-instance Redis test. Zero failure/skip/cancellation. |
+| pnpm build | PASS | All10 normal workspace builds passed with final source; isolated E2E production builds also passed. |
+| pnpm test:e2e | PASS | Final Chromium:20 tests in96.7s, zero failures/skips/flaky results. M0 4 +CRM3 +Catalog2 +Orders3 +Storefront4 +Support4. |
+| Ownership/tenant/RBAC | PASS | Another customer/guest denied, wrong-tenant order/conversation denied, Staff unassigned denied and transfer revokes prior access. Customer DTO excludes CRM/tenant/employee identities. Merchant ticket scoped to tenantA cannot subscribe to tenantB even when its owner belongs to both. |
+| Message persistence/idempotency/concurrency | PASS | Four same-key sends create one message; changed key payload409; concurrent new messages have contiguous sequence. Closed conversations reject new sends but permit original-key replay. Version races have one success/one409; immutable audit retained. |
+| Delivery/read/unread | PASS | Incoming unread counts, actual history delivery, bounded and monotonic read cursor, preserved READ records, cursor pagination and human reply read receipts. Customer history stays private. |
+| Real-time authentication/recovery | PASS | Anonymous/no-ticket upgrade, replayed ticket, hostile Origin and unauthorized subscription rejected. Authorized real WS notification and logout closure verified. Browser explicitly checks WS frames and live receipt; offline message persists and reconnect/reload restores one copy. |
+| CRM isolation | PASS | Fresh contact avoids matching-email takeover, checkout-existing mapping reused; cross-tenant FK failures verified for channel, sender/delivery/assignment parents. |
+| Limits/content/attachments | PASS | Real Redis30/min sends return429; identical retries still resolve after throttling. Empty/oversized/NUL/spoofed fields rejected. Attachment route404. Literal script content rendered as text, no script execution. |
+| Network uncertainty | PASS | Browser deliberately drops the response after a real successful server commit; UI shows retry state, retry yields one durable message, and a subsequent intentional identical message yields a second distinct record. No mock business success is substituted. |
+| UI/localization | PASS | Customer and merchant390px screenshots visually inspected; both have no horizontal overflow. English/Chinese/Malay, Inbox search/status filtering, CRM view, assignment/transfer and close/reopen tested in actual Chromium. |
+| Secret/artifact audit | PASS | Actual local secret values absent from tracked/new files. .env, credentials, key/DB/dependency/cache/build/test-result/trace files excluded. .env.example contains only placeholders and a noncredential local Redis URL. |
+
+## Findings fixed during acceptance
+
+The first API compile exposed Express5's string|string[] parameter typing; narrowed the trusted router tenant parameter to a string. No authorization rule was relaxed. The first complete browser run passed all three initial support scenarios but an existing Storefront privacy assertion matched both its real error paragraph and Next's route announcer. Scoped that assertion to the real Request failed alert; retained the401/404 and private-order absence assertions. The final full run passes.
+
+Review also added shared conversation locks/rechecks around history/read operations so transfer and reading serialize, made repeated read acknowledgements silent, reset recovery cursors after failed authorization/HTTP reads, localized audit/role labels and improved the mobile search form. Added unknown-result response-loss and deliberate repeated-message tests. No database/data cleanup or authentication-rate bypass was used; all fixtures remain unique local synthetic tenants/accounts.
+
+## Scope and operational limits
+
+M2-A is human WEB chat only. AI sender discriminator is reserved; no client can select AI and no M2-B/bot/provider work was started. Attachments have a documented future security design, with no upload/download endpoint, picker or arbitrary URL message field. No anonymous chat, WhatsApp/email connector, payment, push/email notification, staff-presence/typing indicator or response-time guarantee is claimed. Existing password sessions are used; email verification/OTP/recovery are not added.
+
+Redis adapter default is single-node local notifications. Production requires HTTPS/WSS, secure cookies, explicit origins, Upgrade forwarding, ticket-log redaction and shared broker configuration. Connection quotas are local per API node; distributed connection budgeting and production load/deployment approval are outside this development acceptance. Notification outages fall back to persisted HTTP reconciliation, not a claim of guaranteed broker delivery.
+
+Artifacts remain ignored: test-results/e2e-results.json, support-customer-mobile.png, support-inbox-mobile.png and failure traces. Documentation: README.md and docs/M2-A-DESIGN.md. No M2-B implementation or production publishing performed.
+
+---
+
 # M1-D Customer Portal acceptance — 2026-11-15
 
 Status: **PASS — M1-D development acceptance.** Git synchronization is the final delivery step. This section supersedes the older checkpoint summaries below; their original evidence is preserved as history.

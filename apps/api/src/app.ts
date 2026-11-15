@@ -1,3 +1,7 @@
+import {SupportController,SupportOpenController} from "./support.controller";
+import {SupportService} from "./support.service";
+import {SupportRealtime} from "./support.realtime";
+import {SupportBus} from "./support.bus";
 import "reflect-metadata";
 import { Controller, Inject, Get, Post, Patch, Body, Param, Req, Res, Module, UnauthorizedException, ForbiddenException, BadRequestException, ConflictException, ServiceUnavailableException } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -123,7 +127,7 @@ class ApiController {
     return { users: await this.data.db.user.count(), merchants: await this.data.db.tenant.count() };
   }
 }
-@Module({ controllers: [ApiController, CrmController, CatalogController, PublicCatalogController, OrdersController, CustomerOrdersController, StorefrontController, StorefrontPublicController, StorefrontCheckoutController], providers: [Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard, OrdersService, OrderReadGuard, OrderWriteGuard, StorefrontService] })
+@Module({ controllers: [SupportController,SupportOpenController,ApiController, CrmController, CatalogController, PublicCatalogController, OrdersController, CustomerOrdersController, StorefrontController, StorefrontPublicController, StorefrontCheckoutController], providers: [SupportService,SupportRealtime,SupportBus,Data, CrmService, CatalogService, CatalogReadGuard, CatalogWriteGuard, OrdersService, OrderReadGuard, OrderWriteGuard, StorefrontService] })
 class AppModule {}
 export async function createApp() {
   if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") throw new Error("Production requires COOKIE_SECURE=true and HTTPS");
@@ -138,6 +142,7 @@ export async function createApp() {
     }
     next();
   });
+  app.get(SupportRealtime).attach(app);
   app.enableShutdownHooks();
   return app;
 }

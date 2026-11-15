@@ -24,6 +24,8 @@ model User {
   orderHistory OrderStatusHistory[]
   orderEvents OrderEvent[]
   idempotencyKeys IdempotencyKey[]
+  supportConversations Conversation[]
+  supportParticipants ConversationParticipant[]
   customerAccountLinks CustomerAccountLink[]
 }
 model Tenant {
@@ -41,9 +43,12 @@ model Tenant {
   orders Order[]
   storefrontKey String @unique @default(dbgenerated("(gen_random_uuid())::text")) @map("storefront_key")
   storefrontProfile StorefrontProfile?
+  supportChannels SupportChannel[]
+  supportConversations Conversation[]
   customerAccountLinks CustomerAccountLink[]
 }
 model Membership {
+  supportAssignments ConversationAssignment[]
   userId String
   tenantId String
   role Role
@@ -84,6 +89,7 @@ model Customer {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   followUps CustomerFollowUp[]
   orders Order[]
+  supportConversations Conversation[]
   accountLink CustomerAccountLink?
   @@unique([tenantId, id])
   @@index([tenantId, createdAt, id])
@@ -333,4 +339,128 @@ model CustomerAccountLink {
   contact Customer @relation(fields: [tenantId, contactId], references: [tenantId, id], onDelete: Restrict)
   @@id([tenantId, userId])
   @@unique([tenantId, contactId])
+}
+
+enum SupportSenderType {
+  CUSTOMER
+  STAFF
+  AI
+}
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+enum SupportDeliveryStatus {
+  PERSISTED
+  DELIVERED
+  READ
+}
+model SupportChannel {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  kind String @default("WEB") @db.VarChar(32)
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  conversations Conversation[]
+  @@unique([tenantId,id])
+  @@unique([tenantId,kind])
+}
+model Conversation {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  channelId String
+  customerUserId String
+  contactId String
+  status ConversationStatus @default(OPEN)
+  lastSequence Int @default(0)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  channel SupportChannel @relation(fields:[tenantId,channelId],references:[tenantId,id],onDelete:Restrict)
+  customerUser User @relation(fields:[customerUserId],references:[id],onDelete:Restrict)
+  contact Customer @relation(fields:[tenantId,contactId],references:[tenantId,id],onDelete:Restrict)
+  participants ConversationParticipant[]
+  messages Message[]
+  assignments ConversationAssignment[]
+  events ConversationEvent[]
+  @@unique([tenantId,id])
+  @@unique([tenantId,channelId,customerUserId])
+  @@index([tenantId,status,updatedAt])
+  @@index([customerUserId,updatedAt])
+}
+model ConversationParticipant {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  conversationId String
+  userId String
+  senderType SupportSenderType
+  active Boolean @default(true)
+  lastReadSequence Int @default(0)
+  joinedAt DateTime @default(now())
+  conversation Conversation @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
+  user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+  messages Message[]
+  deliveries MessageDelivery[]
+  @@unique([tenantId,conversationId,id])
+  @@unique([tenantId,conversationId,userId,senderType])
+}
+model Message {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  conversationId String
+  senderParticipantId String
+  senderType SupportSenderType
+  channel String @default("WEB") @db.VarChar(32)
+  sequence Int
+  content String @db.VarChar(4000)
+  status String @default("SENT") @db.VarChar(16)
+  clientKey String @db.VarChar(128)
+  requestHash String @db.VarChar(64)
+  sentAt DateTime @default(now())
+  conversation Conversation @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
+  sender ConversationParticipant @relation(fields:[tenantId,conversationId,senderParticipantId],references:[tenantId,conversationId,id],onDelete:Restrict)
+  deliveries MessageDelivery[]
+  @@unique([tenantId,conversationId,id])
+  @@unique([tenantId,conversationId,sequence])
+  @@unique([tenantId,conversationId,senderParticipantId,clientKey])
+}
+model ConversationAssignment {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  conversationId String
+  assigneeId String
+  assignedById String
+  assignedAt DateTime @default(now())
+  endedAt DateTime?
+  conversation Conversation @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
+  assignee Membership @relation(fields:[assigneeId,tenantId],references:[userId,tenantId],onDelete:Restrict)
+  @@index([tenantId,conversationId,endedAt])
+}
+model ConversationEvent {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  conversationId String
+  actorId String
+  type String @db.VarChar(32)
+  version Int
+  payload Json
+  createdAt DateTime @default(now())
+  conversation Conversation @relation(fields:[tenantId,conversationId],references:[tenantId,id],onDelete:Restrict)
+  @@unique([tenantId,conversationId,version])
+}
+model MessageDelivery {
+  id String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  conversationId String
+  messageId String
+  participantId String
+  status SupportDeliveryStatus @default(PERSISTED)
+  deliveredAt DateTime?
+  readAt DateTime?
+  message Message @relation(fields:[tenantId,conversationId,messageId],references:[tenantId,conversationId,id],onDelete:Restrict)
+  participant ConversationParticipant @relation(fields:[tenantId,conversationId,participantId],references:[tenantId,conversationId,id],onDelete:Restrict)
+  @@unique([tenantId,messageId,participantId])
+  @@index([tenantId,conversationId,participantId,status])
 }
